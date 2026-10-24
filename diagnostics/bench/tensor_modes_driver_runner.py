@@ -8,7 +8,11 @@ import argparse
 import ctypes as C
 import hashlib
 import json
+import math
+import os
 from pathlib import Path
+import platform
+import shutil
 import subprocess
 import time
 
@@ -31,26 +35,74 @@ def digest(path):
     return h.hexdigest()
 
 
+def cuda_library():
+    if os.name == "nt":
+        # CUDA's Windows Driver API uses the Windows calling convention.
+        return C.WinDLL("nvcuda.dll", winmode=0x800)  # LOAD_LIBRARY_SEARCH_SYSTEM32
+    try:
+        return C.CDLL("libcuda.so.1")
+    except OSError:
+        # WSL projects this library even when ldconfig has not added its path.
+        if "microsoft" not in platform.release().lower():
+            raise
+        return C.CDLL("/usr/lib/wsl/lib/libcuda.so.1")
+
+
+def nvidia_smi():
+    command = shutil.which("nvidia-smi")
+    if command:
+        return command
+    wsl_command = Path("/usr/lib/wsl/lib/nvidia-smi")
+    if wsl_command.is_file():
+        return str(wsl_command)
+    raise RuntimeError("nvidia-smi is missing; install the Windows host driver for WSL2")
+
+
+def gpu_info(uuid, expected_power_limit, allow_unavailable=False):
+    gpu = subprocess.run(
+        [nvidia_smi(), "--id=" + uuid,
+         "--query-gpu=uuid,name,pci.bus_id,driver_version,power.limit",
+         "--format=csv,noheader,nounits"], check=True, capture_output=True, text=True, timeout=15,
+    ).stdout.strip()
+    fields = [field.strip() for field in gpu.split(",")]
+    if len(fields) != 5 or fields[0] != uuid or "\n" in gpu:
+        raise ValueError("GPU identity mismatch: " + gpu)
+    try:
+        actual_power = float(fields[4])
+    except ValueError:
+        if not allow_unavailable:
+            raise ValueError("power limit unavailable; check it on the Windows host, then use "
+                             "--allow-unavailable-power-limit if appropriate") from None
+        return gpu, False
+    if not math.isfinite(actual_power) or abs(actual_power - expected_power_limit) >= 0.01:
+        raise ValueError("power limit mismatch: " + gpu)
+    return gpu, True
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("cubin", type=Path)
     parser.add_argument("--sha256", required=True)
     parser.add_argument("--expect-uuid", required=True)
     parser.add_argument("--expect-power-limit", type=float, required=True)
+    parser.add_argument("--allow-unavailable-power-limit", action="store_true",
+                        help="WSL2 may omit power telemetry; record it as unverified")
     parser.add_argument("--iters", type=int, default=20000)
     parser.add_argument("--reps", type=int, default=3)
+    parser.add_argument("--output", type=Path, help="save the successful JSON report")
+    parser.add_argument("--include-bf16", action="store_true",
+                        help="also run BF16 (requires a cubin built from the updated source)")
     args = parser.parse_args()
-    assert args.cubin.is_file() and digest(args.cubin) == args.sha256
-    assert 0 < args.iters <= 20000 and 1 <= args.reps <= 5
-    gpu = subprocess.run(
-        ["nvidia-smi", "--query-gpu=uuid,name,pci.bus_id,driver_version,power.limit",
-         "--format=csv,noheader,nounits"], check=True, capture_output=True, text=True, timeout=15,
-    ).stdout.strip()
-    fields = [field.strip() for field in gpu.split(",")]
-    assert len(fields) == 5 and fields[0] == args.expect_uuid, gpu
-    assert abs(float(fields[4]) - args.expect_power_limit) < 0.01, gpu
+    if not args.cubin.is_file() or digest(args.cubin) != args.sha256.lower():
+        parser.error("cubin is missing or its SHA-256 differs from --sha256")
+    if not 0 < args.iters <= 20000 or not 1 <= args.reps <= 5:
+        parser.error("--iters must be 1..20000 and --reps must be 1..5")
+    if not 0 < args.expect_power_limit < float("inf"):
+        parser.error("--expect-power-limit must be finite and positive")
+    gpu, power_verified = gpu_info(args.expect_uuid, args.expect_power_limit,
+                                   args.allow_unavailable_power_limit)
 
-    lib = C.CDLL("libcuda.so.1")
+    lib = cuda_library()
     def api(name, argtypes):
         function = getattr(lib, name)
         function.argtypes = argtypes
@@ -59,6 +111,9 @@ def main():
     cuInit = api("cuInit", [C.c_uint])
     cuDeviceGetCount = api("cuDeviceGetCount", [C.POINTER(C.c_int)])
     cuDeviceGet = api("cuDeviceGet", [C.POINTER(C.c_int), C.c_int])
+    class UUID(C.Structure):
+        _fields_ = [("bytes", C.c_ubyte * 16)]
+    cuDeviceGetUuid = api("cuDeviceGetUuid_v2", [C.POINTER(UUID), C.c_int])
     cuCtxCreate = api("cuCtxCreate_v2", [C.POINTER(C.c_void_p), C.c_uint, C.c_int])
     cuCtxDestroy = api("cuCtxDestroy_v2", [C.c_void_p])
     cuModuleLoad = api("cuModuleLoad", [C.POINTER(C.c_void_p), C.c_char_p])
@@ -89,19 +144,32 @@ def main():
     started = time.time()
     report = {"gpu": gpu, "cubin_sha256": args.sha256, "iters": args.iters,
               "reps": args.reps, "blocks": BLOCKS, "threads": THREADS,
-              "warps": WARPS, "chains": CHAINS, "modes": {}}
+              "warps": WARPS, "chains": CHAINS, "modes": {},
+              "platform": platform.platform(), "power_limit_verified": power_verified,
+              "expected_power_limit_watts": args.expect_power_limit}
     check(cuInit(0), "cuInit")
     count = C.c_int()
     check(cuDeviceGetCount(C.byref(count)), "cuDeviceGetCount")
-    assert count.value == 1, count.value
     device = C.c_int()
-    check(cuDeviceGet(C.byref(device), 0), "cuDeviceGet")
+    matched = []
+    for ordinal in range(count.value):
+        check(cuDeviceGet(C.byref(device), ordinal), "cuDeviceGet")
+        uuid = UUID()
+        check(cuDeviceGetUuid(C.byref(uuid), device.value), "cuDeviceGetUuid")
+        raw = bytes(uuid.bytes).hex()
+        actual = "GPU-" + "-".join((raw[:8], raw[8:12], raw[12:16], raw[16:20], raw[20:]))
+        if actual.lower() == args.expect_uuid.lower():
+            matched.append(device.value)
+    if len(matched) != 1:
+        raise ValueError("expected GPU UUID is not uniquely visible to the CUDA Driver API")
+    device.value = matched[0]
     try:
         check(cuCtxCreate(C.byref(ctx), 0, device.value), "cuCtxCreate")
-        check(cuModuleLoad(C.byref(module), str(args.cubin).encode()), "cuModuleLoad")
+        check(cuModuleLoad(C.byref(module), os.fsencode(args.cubin.resolve())), "cuModuleLoad")
         cells = BLOCKS * THREADS
         check(cuMemAlloc(C.byref(device_mem), cells * 4), "cuMemAlloc")
-        for label, name, k, integer in MODES:
+        modes = MODES + ((("bf16_f32", "bench_bf16_f32", 16, False),) if args.include_bf16 else ())
+        for label, name, k, integer in modes:
             fn = C.c_void_p()
             check(cuModuleGetFunction(C.byref(fn), module, name.encode()), "cuModuleGetFunction " + name)
             iters = C.c_ulonglong(args.iters)
@@ -125,7 +193,8 @@ def main():
                     check(cuEventSynchronize(stop), "cuEventSynchronize")
                     ms = C.c_float()
                     check(cuEventElapsedTime(C.byref(ms), start, stop), "cuEventElapsedTime")
-                    assert ms.value > 0
+                    if not ms.value > 0:
+                        raise RuntimeError("CUDA event returned an invalid duration")
                     times.append(float(ms.value))
                 finally:
                     check(cuEventDestroy(stop), "cuEventDestroy stop")
@@ -138,7 +207,8 @@ def main():
                   "cuMemcpyDtoH " + name)
             expected = 4 * CHAINS * args.iters * k
             mismatches = sum(1 for value in host if value != expected)
-            assert mismatches == 0, (name, mismatches, expected, host[0], host[-1])
+            if mismatches:
+                raise RuntimeError(f"{name}: {mismatches} numerical mismatches; expected {expected}")
             ops = WARPS * args.iters * CHAINS * (16 * 8 * k * 2)
             rates = [ops / (ms * 1e9) for ms in times]
             report["modes"][label] = {"instruction": name, "k": k,
@@ -155,7 +225,10 @@ def main():
         if ctx.value:
             check(cuCtxDestroy(ctx), "cuCtxDestroy")
     report["seconds"] = time.time() - started
-    print(json.dumps(report))
+    result = json.dumps(report)
+    if args.output:
+        args.output.write_text(result + "\n", encoding="utf-8")
+    print(result)
 
 
 if __name__ == "__main__":

@@ -8,6 +8,12 @@ per mode against the expected all-ones result. It requires the exact GPU UUID,
 power cap, and cubin SHA-256 so a different card or binary cannot silently
 enter a matched comparison.
 
+The driver runner also supports native Windows and Ubuntu/WSL2. Add
+`--include-bf16` with a cubin rebuilt from the current source to check BF16/FP32
+as well, and `--output report.json` to save a successful result. See the
+[Windows and WSL2 instructions](../../windows/README.md). The UEFI unlock
+itself remains unverified on RTX 4090/Windows.
+
 Build on Linux with the CUDA toolkit for an SM89 card:
 
 ```sh

@@ -24,3 +24,15 @@
 /debian/gpu-unlock-*/
 modules.order
 Module.symvers
+
+# Local credentials, hardware captures and generated boot/firmware images.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.rom
+*.dmp
+*.bin
+*.efi
+*.cubin

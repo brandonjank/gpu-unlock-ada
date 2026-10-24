@@ -1,0 +1,110 @@
+{
+  "schema_version": 1,
+  "sources": [
+    {
+      "id": "ada-parent",
+      "provider": "github",
+      "repository": "JustAResearcher/gpu-unlock-ada",
+      "integration_revision": "491925c1079435e260137b9f3526066e764de830",
+      "priority": "direct",
+      "url": "https://github.com/JustAResearcher/gpu-unlock-ada",
+      "observed_head": "491925c1079435e260137b9f3526066e764de830",
+      "observed_commit_date": "2026-10-24T00:26:13Z",
+      "observed_commit_title": "Release 1.1.1 with TF32 and INT4 evidence",
+      "observed_at": "2026-10-24T21:36:31Z"
+    },
+    {
+      "id": "linux-origin",
+      "provider": "github",
+      "repository": "Zagitta/gpu-unlock",
+      "uefi_vendor_revision": "0ebdb1c6308b6a2072be5bf04513472942541956",
+      "priority": "direct",
+      "url": "https://github.com/Zagitta/gpu-unlock",
+      "observed_head": "af28cbbfd3d922a659227ecfb7369adfd924cf03",
+      "observed_commit_date": "2026-10-24T15:47:28Z",
+      "observed_commit_title": "Merge pull request #37 from tsondo/claude/wizardly-turing-ecpa8w",
+      "observed_at": "2026-10-24T21:36:32Z"
+    },
+    {
+      "id": "cmp90-payload",
+      "provider": "github",
+      "repository": "WildFlash1st/cmp90hx-unlock",
+      "integration_revision": "76940ae583281daa2b883518a2e89b56c11d3a46",
+      "priority": "direct",
+      "url": "https://github.com/WildFlash1st/cmp90hx-unlock",
+      "observed_head": "76940ae583281daa2b883518a2e89b56c11d3a46",
+      "observed_commit_date": "2026-08-22T07:28:19Z",
+      "observed_commit_title": "research: PCIe Gen2+ front closed via XP3G PLM discovery (GEN3ADV V1\u2013V5)",
+      "observed_at": "2026-10-24T21:36:32Z"
+    },
+    {
+      "id": "ada-windows-payload",
+      "provider": "huggingface",
+      "repository": "TOTORONG/AD103_win_unlocker",
+      "repository_type": "model",
+      "integration_revision": "51df9c17ec89eb8486df52cc9079dde4bd1f9974",
+      "priority": "direct",
+      "url": "https://huggingface.co/TOTORONG/AD103_win_unlocker",
+      "observed_head": "51df9c17ec89eb8486df52cc9079dde4bd1f9974",
+      "observed_commit_date": "2026-10-23T12:43:02Z",
+      "observed_at": "2026-10-24T21:36:32Z"
+    },
+    {
+      "id": "nvidia-source",
+      "provider": "github",
+      "repository": "NVIDIA/open-gpu-kernel-modules",
+      "integration_tag": "610.43.03",
+      "priority": "reference",
+      "url": "https://github.com/NVIDIA/open-gpu-kernel-modules",
+      "observed_head": "ca2d03e6fafd4d4b56b383497d931c25b283bfcf",
+      "observed_commit_date": "2026-10-07T16:29:01Z",
+      "observed_commit_title": "615.78.08",
+      "observed_at": "2026-10-24T21:36:33Z"
+    },
+    {
+      "id": "edk2-headers",
+      "provider": "github",
+      "repository": "tianocore/edk2",
+      "integration_revision": "c1415771ac592ad8509351c46cd3cda4f38d7d52",
+      "priority": "reference",
+      "url": "https://github.com/tianocore/edk2",
+      "observed_head": "0a503bc2f5bd37c7a5d39d0ba31008f446f0298d",
+      "observed_commit_date": "2026-10-24T17:15:38Z",
+      "observed_commit_title": "MdePkg/BaseLib: Support IMPCTL1, IMPCTL2 and TLBRPRMD on LoongArch",
+      "observed_at": "2026-10-24T21:36:33Z"
+    },
+    {
+      "id": "register-tools",
+      "provider": "github",
+      "repository": "envytools/envytools",
+      "priority": "reference",
+      "url": "https://github.com/envytools/envytools",
+      "observed_head": "f102b82381f3f11cee113d16374c87091db039d9",
+      "observed_commit_date": "2023-10-26T10:42:54Z",
+      "observed_commit_title": "Merge pull request #218 from saper/build-fixes",
+      "observed_at": "2026-10-24T21:36:33Z"
+    },
+    {
+      "id": "cmp170-research",
+      "provider": "github",
+      "repository": "Consensus-Protocol/cmp170hx",
+      "priority": "reference",
+      "url": "https://github.com/Consensus-Protocol/cmp170hx",
+      "observed_head": "d923a25fb2ecb6ee3d62654983f453194b66485f",
+      "observed_commit_date": "2026-08-22T05:04:44Z",
+      "observed_commit_title": "Merge pull request #1 from everyun/zh-translation",
+      "observed_at": "2026-10-24T21:36:34Z"
+    },
+    {
+      "id": "cmp-research",
+      "provider": "github",
+      "repository": "amoghmunikote/cmpunlocker",
+      "priority": "reference",
+      "url": "https://github.com/amoghmunikote/cmpunlocker",
+      "observed_head": "2d10f891a58824f0591c3332c4eccf37ff36b086",
+      "observed_commit_date": "2026-10-08T01:51:26Z",
+      "observed_commit_title": "Add support for nvidia-open 615.78.08",
+      "observed_at": "2026-10-24T21:36:35Z"
+    }
+  ]
+}

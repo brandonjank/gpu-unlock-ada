@@ -2,6 +2,16 @@
 
 New to this project? Start with the [copy-paste Quick Start](QUICKSTART.md).
 
+This fork is maintained at [brandonjank/gpu-unlock-ada](https://github.com/brandonjank/gpu-unlock-ada).
+It preserves the original project history and adds the experimental Windows/UEFI
+port. See [upstream tracking](docs/upstreams.md) for source repositories,
+revision baselines and the update review process.
+
+**Windows / Ubuntu on WSL2:** see the [experimental Windows preboot port](windows/README.md).
+Its CUDA validation runner has been exercised on both systems; the RTX 4090 UEFI
+unlock and Windows driver handoff still require hardware validation. The Linux
+kernel module cannot unlock the Windows host GPU from inside WSL2.
+
 This Linux kernel module enables the SM speed-select override before the stock
 NVIDIA driver starts. RTX 4090 (`10de:2684`, AD102) support has demonstrated
 approximately **2× FP16 and BF16 tensor throughput with FP32 accumulation**:
@@ -75,7 +85,7 @@ Clone the GPL-2.0-only source and build the packages locally so the pinned
 NVIDIA firmware is downloaded and generated on your own machine:
 
 ```sh
-git clone https://github.com/JustAResearcher/gpu-unlock-ada.git
+git clone https://github.com/brandonjank/gpu-unlock-ada.git
 cd gpu-unlock-ada
 make install
 ```

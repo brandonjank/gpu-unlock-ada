@@ -4,7 +4,7 @@ Name: gpu-unlock
 Version: 1.1.1
 Release: 1%{?dist}
 Summary: RTX 4090 and experimental RTX 4070 Ti SUPER tensor unlock before NVIDIA loads
-URL: https://github.com/JustAResearcher/gpu-unlock-ada
+URL: https://github.com/brandonjank/gpu-unlock-ada
 License: GPL-2.0-only
 BuildArch: noarch
 Source0: gpu-unlock-%{version}.tar.xz

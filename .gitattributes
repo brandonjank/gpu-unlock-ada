@@ -19,6 +19,7 @@
 /packaging -export-ignore
 /tests -export-ignore
 /tools -export-ignore
+/windows -export-ignore
 /requirements-research.txt -export-ignore
 *.bin export-ignore
 *.cu export-ignore

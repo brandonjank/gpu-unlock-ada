@@ -26,7 +26,7 @@ Install Git, your running kernel's headers, a C build toolchain, DKMS, Python 3,
 and `zstd` using your distribution's package manager. Then:
 
 ```sh
-git clone https://github.com/JustAResearcher/gpu-unlock-ada.git
+git clone https://github.com/brandonjank/gpu-unlock-ada.git
 cd gpu-unlock-ada
 make install
 ```

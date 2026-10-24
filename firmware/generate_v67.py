@@ -9,6 +9,7 @@ import json
 import hashlib
 import subprocess
 import tarfile
+import sys
 from pathlib import Path
 
 
@@ -86,6 +87,10 @@ def sha256(data: bytes) -> str:
 
 def extract_member(package: Path, name: str) -> bytes:
     if package.name.endswith(".zst"):
+        if sys.version_info >= (3, 14):
+            # Python 3.14 provides zstd on Windows as well as Linux.
+            with tarfile.open(package, mode="r:zst") as archive:
+                return read_member(archive, name)
         process = subprocess.Popen(["zstd", "-dc", str(package)], stdout=subprocess.PIPE)
         try:
             with tarfile.open(fileobj=process.stdout, mode="r|") as archive:

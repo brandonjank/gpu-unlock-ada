@@ -1235,16 +1235,22 @@ static int unlock_transaction_gfw(struct unlock_transaction_work *work)
 
 	for (;;) {
 		struct gpu_unlock_gfw_sample sample = { };
-		u16 vendor = 0xffff;
+		u32 identity = 0;
 
-		if (read_bar(work, GU_GFW_PLM_OFFSET, &sample.plm) ||
-		    read_bar(work, GU_GFW_BOOT_OFFSET, &sample.boot) ||
-		    read_bar(work, GU_GFW_CPUCTL_OFFSET, &sample.cpuctl))
+		if (diag_pci_dword(work, false, PCI_VENDOR_ID, &identity) ||
+		    identity != pci_identity(work->pdev))
+			return GU_RESULT(-ENODEV);
+		sample.config_ok = true;
+		if (read_bar(work, GU_GFW_CPUCTL_OFFSET, &sample.cpuctl) ||
+		    read_bar(work, GU_GFW_PLM_OFFSET, &sample.plm))
 			return GU_RESULT(-EIO);
-		if (!diag_pci_word(work, false, PCI_VENDOR_ID, &vendor) &&
-		    vendor != 0xffff)
-			sample.config_ok = true;
-		assessed = gpu_unlock_gfw_assess(&sample);
+		/* BOOT is protected until PL0 is readable. Retry transient PRI errors
+		 * only within the existing deadline, as in the post-FLR sampler. */
+		if (!inaccessible(sample.plm) && (sample.plm & GU_GFW_PLM_LEVEL0) &&
+		    read_bar(work, GU_GFW_BOOT_OFFSET, &sample.boot))
+			return GU_RESULT(-EIO);
+		assessed = inaccessible(sample.plm) || inaccessible(sample.boot) ||
+			   inaccessible(sample.cpuctl) ? -EAGAIN : gpu_unlock_gfw_assess(&sample);
 		if (!assessed) {
 			u32 ss0, ss1, wpr_hi;
 

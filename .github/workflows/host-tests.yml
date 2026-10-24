@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0-only
+# Generated-input/module/package coverage adapted from Zagitta/gpu-unlock af28cbbf.
 name: Host tests
 
 on:
@@ -8,17 +10,46 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  linux:
-    runs-on: ubuntu-latest
+  inputs:
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.14'
+      - uses: actions/cache@v4
+        with:
+          path: .inputs
+          key: pinned-inputs-${{ hashFiles('firmware/artifacts-*.json') }}
+      - run: make inputs INPUTS=.inputs
+      - run: python firmware/fetch_artifacts.py --offline .inputs
+
+  linux:
+    needs: inputs
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - uses: actions/cache/restore@v4
+        with:
+          path: .inputs
+          key: pinned-inputs-${{ hashFiles('firmware/artifacts-*.json') }}
+          fail-on-cache-miss: true
+      - run: python firmware/fetch_artifacts.py --offline .inputs
       - run: python -m pip install -r requirements-research.txt
-      - run: make test
-      - run: python -m unittest discover -s windows/tests -v
+      - run: make firmware INPUTS=.inputs ASSETS=build/assets
+      - run: make test ASSETS=build/assets
+        env:
+          GPU_UNLOCK_NVIDIA_SOURCE: ${{ github.workspace }}/build/assets.src/NVIDIA-kernel-module-source-610.43.03
+      - run: python .github/ci/install_zig.py
+      - run: python windows/test.py
   windows:
     runs-on: windows-latest
     steps:
@@ -26,4 +57,55 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.14'
-      - run: python -m unittest discover -s windows/tests -v
+      - run: python .github/ci/install_zig.py
+      - run: python windows/test.py
+
+  module:
+    name: module (${{ matrix.image }})
+    runs-on: ubuntu-24.04
+    container: ${{ matrix.image }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: debian:12
+            setup: apt-get update -q && apt-get install -qy --no-install-recommends ca-certificates git
+          - image: ubuntu:24.04
+            setup: apt-get update -q && apt-get install -qy --no-install-recommends ca-certificates git
+          - image: debian:13
+            setup: apt-get update -q && apt-get install -qy --no-install-recommends ca-certificates git
+          - image: fedora:latest
+            setup: dnf install -qy git
+          - image: archlinux:latest
+            setup: pacman -Syu --noconfirm --needed git
+    steps:
+      # Install git first; archive fallback omits export-ignored CI scripts.
+      - run: ${{ matrix.setup }}
+      - uses: actions/checkout@v4
+      - run: sh .github/ci/module.sh
+
+  package:
+    name: package (${{ matrix.image }})
+    needs: inputs
+    runs-on: ubuntu-24.04
+    container: ${{ matrix.image }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: debian:13
+            setup: apt-get update -q && apt-get install -qy --no-install-recommends ca-certificates git make python3 xz-utils zstd
+          - image: fedora:latest
+            setup: dnf install -qy git make python3 xz zstd rpm-build dnf-plugins-core
+          - image: archlinux:latest
+            setup: pacman -Syu --noconfirm --needed base-devel git python zstd
+    steps:
+      - run: ${{ matrix.setup }}
+      - uses: actions/checkout@v4
+      - uses: actions/cache/restore@v4
+        with:
+          path: .inputs
+          key: pinned-inputs-${{ hashFiles('firmware/artifacts-*.json') }}
+          fail-on-cache-miss: true
+      - run: python3 firmware/fetch_artifacts.py --offline .inputs
+      - run: INPUTS=.inputs sh .github/ci/package.sh

@@ -125,6 +125,35 @@ Quarantine does not itself solve the first unsafe handoff to NVIDIA. Preserve
 the cold-boot-only path until that handoff and recovery contract are established.
 A Linux PM notifier does not add Windows/WSL resume support.
 
+## Selected fixes, 2026-10-24
+
+The selected integration implements issue 42's PRI-error rejection in both
+validators. Both initial samplers now require the exact PCI vendor/device pair,
+defer BOOT reads until PL0 is readable, and retry transient unreadable samples
+within the existing deadline. Post-FLR retry behavior remains unchanged.
+
+The UEFI transaction now marks firmware/DMA active at the validated DMA boundary,
+matching the Linux lifetime policy. Rejected mapped-address geometry does not
+set either the transaction or platform started marker; a timeout after entering
+the DMA path still sets both markers and requires proven quiescence before
+releasing buffers. No firmware addresses, payload bytes or input pins change.
+
+Debian and Arch packages now ship their existing dracut configuration alongside
+their other early-load configuration. Host regressions exercise the actual
+Arch install function, the Debian install recipe/file selection, and Debian's
+mocked install/removal rebuild hooks. Native CI also inspects built packages.
+
+CI coverage adapts Zagitta's `af28cbbf` workflow and helper scripts under the
+existing GPL-2.0-only license: hash-verified input caching, generated GA/Ada
+assets, full mocked transactions, real module builds against Debian/Ubuntu/
+Fedora/Arch headers, and Debian/RPM/Arch package builds. Windows and Linux run
+the UEFI host tests with checksummed Zig 0.15.2, including a synthetic EFI build.
+Generated firmware and packages are never uploaded as CI artifacts.
+
+Suspend/resume support is excluded from this integration. These automated
+checks exercise CPU mocks, source/package construction and compilation; they
+do not establish a new physical GPU unlock or boot-handoff result.
+
 ## Local version control
 
 `origin` points to this public fork; `upstream` points to JustAResearcher's Ada

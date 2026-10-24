@@ -66,6 +66,24 @@ def main():
         result = run_binary(binary)
         print(result.stdout + result.stderr, end="")
         result.check_returncode()
+        binary = Path(d) / ("transaction-tests.exe" if sys.platform == "win32" else "transaction-tests")
+        subprocess.run([args.zig, "cc", *target, "-std=c11", "-O2", "-Wall", "-Wextra", "-Werror",
+                        "-Wno-unused-parameter", "-fshort-wchar", "-ffunction-sections", "-fdata-sections",
+                        "-Wl,--gc-sections", "-DGU_PROBE_ONLY", "-DGU_UEFI_PORT", "-D__KERNEL__",
+                        *(f"-I{p}" for p in includes),
+                        str(ROOT / "windows/tests/test_transaction.c"), str(UEFI / "vendor/gfw_eval.c"),
+                        str(UEFI / "vendor/prep_610.c"),
+                        "-o", str(binary)], check=True)
+        result = run_binary(binary)
+        print(result.stdout + result.stderr, end="")
+        result.check_returncode()
+        binary = Path(d) / ("uefi-gfw-tests.exe" if sys.platform == "win32" else "uefi-gfw-tests")
+        subprocess.run([args.zig, "cc", *target, "-std=c11", "-Wall", "-Wextra", "-Werror",
+                        f"-I{UEFI / 'vendor'}", str(UEFI / "vendor/gfw_eval.c"),
+                        str(ROOT / "tests/test_gfw_eval.c"), "-o", str(binary)], check=True)
+        result = run_binary(binary)
+        print(result.stdout + result.stderr, end="")
+        result.check_returncode()
         spec = importlib.util.spec_from_file_location("release", ROOT / "tests/test_release.py")
         release = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(release)

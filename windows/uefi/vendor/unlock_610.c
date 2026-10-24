@@ -349,6 +349,12 @@ static int falcon_dma(struct unlock_transaction_work *work, u32 base, u32 dest, 
 		base, dest, mem_off, (unsigned long long)src, size, cmd);
 	if (!falcon_dma_valid(dest, mem_off, src, size))
 		return GU_RESULT(-EINVAL);
+	/* Geometry failures have not exposed a DMA target. From here retain the
+	 * buffers on unproven quiescence, even if a later poll fails. */
+	work->firmware_started = true;
+#ifdef GU_UEFI_PORT
+	GuStarted();
+#endif
 	ret = poll_us(work, base + 0x118, 1, 0, 1000000, true);
 	if (ret)
 		return GU_RESULT(ret);
@@ -1087,10 +1093,6 @@ static int unlock_transaction_fwsec(struct unlock_transaction_work *work)
 		ret = -EIO;
 		goto out;
 	}
-	work->firmware_started = true;
-#ifdef GU_UEFI_PORT
-	GuStarted();
-#endif
 	ret = falcon_hs(work, &gsp, 0, fw.imem_size, fw.imem_va, fw.imem_pa,
 			fw.data_off, dmem_transfer, fw.dmem_pa, fw.pkc_off,
 			fw.engine_mask, fw.ucode_id,
@@ -1133,16 +1135,21 @@ static int unlock_transaction_gfw(struct unlock_transaction_work *work)
 
 	for (;;) {
 		struct gpu_unlock_gfw_sample sample = { };
-		u16 vendor = 0xffff;
+		u32 identity = 0;
 
-		if (read_bar(work, GU_GFW_PLM_OFFSET, &sample.plm) ||
-		    read_bar(work, GU_GFW_BOOT_OFFSET, &sample.boot) ||
-		    read_bar(work, GU_GFW_CPUCTL_OFFSET, &sample.cpuctl))
+		if (diag_pci_dword(work, false, PCI_VENDOR_ID, &identity) ||
+		    identity != GU_TARGET_PCI_ID)
+			return GU_RESULT(-ENODEV);
+		sample.config_ok = true;
+		if (read_bar(work, GU_GFW_CPUCTL_OFFSET, &sample.cpuctl) ||
+		    read_bar(work, GU_GFW_PLM_OFFSET, &sample.plm))
 			return GU_RESULT(-EIO);
-		if (!diag_pci_word(work, false, PCI_VENDOR_ID, &vendor) &&
-		    vendor != 0xffff)
-			sample.config_ok = true;
-		assessed = gpu_unlock_gfw_assess(&sample);
+		/* Match Linux's bounded retry and protected BOOT read ordering. */
+		if (!inaccessible(sample.plm) && (sample.plm & GU_GFW_PLM_LEVEL0) &&
+		    read_bar(work, GU_GFW_BOOT_OFFSET, &sample.boot))
+			return GU_RESULT(-EIO);
+		assessed = inaccessible(sample.plm) || inaccessible(sample.boot) ||
+			   inaccessible(sample.cpuctl) ? -EAGAIN : gpu_unlock_gfw_assess(&sample);
 		if (!assessed) {
 			u32 ss0, ss1, wpr_hi;
 

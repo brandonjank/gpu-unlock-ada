@@ -25,7 +25,7 @@ static struct {
     int reset_locked_until_flr,hold_writes,bar_ready_after,bar_ready_reads,wpr_after;
     int post_gfw,post_gfw_reads,gsp_post_reset_writes;
     int fwsec_wpr;u32 fwsec_wpr_lo,fwsec_wpr_hi; /* WPR2 that FWSEC-FRTS enables */
-    int apertures,regions;
+    int apertures,regions,wrong_identity,protected_boot_reads,initial_recover,initial_reads;
     int ad_mode;
     char log[32768];
 } fake;
@@ -76,6 +76,11 @@ void usleep_range(unsigned long a,unsigned long b) {fake.now+=a;}
 ktime_t ktime_get(void) {return fake.now;}
 u32 readl(const void *p) {
     size_t n=((const u8 *)p-(const u8 *)regs)/4;assert(n<ARRAY_SIZE(regs));
+    if(!fake.flrs && n==GU_GFW_CPUCTL_OFFSET/4 && fake.initial_recover && ++fake.initial_reads<3)
+        return 0xbadf0010;
+    if(n==GU_GFW_BOOT_OFFSET/4 &&
+       (inaccessible(regs[GU_GFW_PLM_OFFSET/4]) || !(regs[GU_GFW_PLM_OFFSET/4]&1)))
+        fake.protected_boot_reads++;
     if(fake.flrs && !n && fake.bar_ready_after) {
         fake.bar_ready_reads++;
         if(fake.bar_ready_after<0 || fake.bar_ready_reads<fake.bar_ready_after)
@@ -191,7 +196,7 @@ void release_firmware(const struct firmware *f) {if(f){free((void *)f->data);fre
 void __module_get(void *p) {fake.pins++;}
 int pci_read_config_word(struct pci_dev *p,int r,u16 *v) {*v=r==PCI_COMMAND?fake.cmd:r==PCI_VENDOR_ID?0x10de:0;return 0;}
 int pci_read_config_dword(struct pci_dev *p,int r,u32 *v) {
-    *v=r==PCI_VENDOR_ID?(fake.flrs && fake.lost_identity?~0u:(u32)p->device<<16|p->vendor):(u32)fake.bar_bad;return 0;
+    *v=r==PCI_VENDOR_ID?(fake.wrong_identity?0x123410de:fake.flrs && fake.lost_identity?~0u:(u32)p->device<<16|p->vendor):(u32)fake.bar_bad;return 0;
 }
 int pci_write_config_word(struct pci_dev *p,int r,u16 v) {assert(r==PCI_COMMAND);fake.cmd=v|(fake.master_stuck?4:0);return 0;}
 int pcie_capability_read_word(struct pci_dev *p,int r,u16 *v) {*v=r==PCI_EXP_DEVSTA?fake.pending:0;return 0;}
@@ -495,6 +500,24 @@ int main(int argc, char **argv) {
         assert(!fake.writes && !fake.gsp_starts);
         if(mode==2)assert(strstr(fake.log,"card already initialised since power on"));
     }
+    /* Initial samples never launch firmware or read BOOT behind a closed
+     * PLM. PRI faults may recover only within the existing bounded wait. */
+    for(int mode=0;mode<6;mode++) {
+        setup(&w);
+        regs[GU_GFW_PLM_OFFSET/4]=1;regs[GU_GFW_BOOT_OFFSET/4]=0xff;
+        regs[GU_GFW_CPUCTL_OFFSET/4]=0x10;regs[GU_FEAT_PLM_OFFSET/4]=0x8f;
+        if(mode==0)regs[GU_GFW_PLM_OFFSET/4]=0xbadf0001;
+        if(mode==1)regs[GU_GFW_BOOT_OFFSET/4]=0xbadf00ff;
+        if(mode==2)regs[GU_GFW_CPUCTL_OFFSET/4]=0xbadf0010;
+        if(mode==3)regs[GU_GFW_PLM_OFFSET/4]=0;
+        if(mode==4)fake.wrong_identity=1;
+        if(mode==5)fake.initial_recover=1;
+        int ret=unlock_transaction_gfw(&w);
+        assert(ret==(mode==4?-ENODEV:mode==5?0:-ETIMEDOUT));
+        assert(!fake.writes && !fake.gsp_starts && !fake.starts && !w.firmware_started);
+        assert(!fake.protected_boot_reads);
+        if(mode==5)assert(fake.initial_reads==3);
+    }
     setup(&w); dev.dev_flags=PCI_DEV_FLAGS_NO_FLR_RESET;
     assert(unlock_transaction_claim(&w)==-EOPNOTSUPP && !fake.flrs && !fake.allocs);
     /* A setter may mutate a mask before returning failure; restore both. */
@@ -602,7 +625,7 @@ int main(int argc, char **argv) {
             "post-gfw-late","post-gfw-timeout","post-gfw-inaccessible","post-gsp-resumed",
             "wpr-frts-retained","firmware-group-oom-first","firmware-group-oom-later","devres-preexisting","devres-at-handoff",
             "warm-wpr2","ss1-readback","ss1-lost","power-unknown","power-unknown-no-pm",
-            "firmware-bme","firmware-bme-stuck"};
+            "firmware-bme","firmware-bme-stuck","initial-pri-plm","initial-pri-boot","initial-pci-mismatch"};
         int total_allocations=0;
         for(unsigned scenario=0;scenario<ARRAY_SIZE(cases);scenario++) {
             setup(&w);
@@ -668,6 +691,9 @@ int main(int argc, char **argv) {
             if(scenario==58)dev.pm_cap=0x60;
             if(scenario==60 || scenario==61)fake.cmd=6; /* firmware left BME set */
             if(scenario==61)fake.master_stuck=1;
+            if(scenario==62)regs[GU_GFW_PLM_OFFSET/4]=0xbadf0001;
+            if(scenario==63)regs[GU_GFW_BOOT_OFFSET/4]=0xbadf00ff;
+            if(scenario==64)fake.wrong_identity=1;
             /* As main.c: the GSP file is loaded once, ahead of every card. */
             struct gpu_unlock_610_shared shared={0};last_work=NULL;
             int ret=gpu_unlock_610_load_shared(&dev,&shared);
@@ -726,6 +752,11 @@ int main(int argc, char **argv) {
             if(scenario==59)assert(ret==-EOPNOTSUPP && !fake.allocs && !fake.flrs);
             if(scenario==60)assert(strstr(fake.log,"claim: cleared firmware BME"));
             if(scenario==61)assert(ret==-EBUSY && !fake.allocs && !fake.flrs);
+            if(scenario>=62) {
+                assert(ret==(scenario==64?-ENODEV:-ETIMEDOUT));
+                assert(!retained && !fake.gsp_starts && !fake.starts && !fake.flrs);
+                assert(!fake.dma_commands && !fake.protected_boot_reads);
+            }
             if(scenario==55) {
                 assert(ret==-EBUSY && !retained && !fake.gsp_starts && !fake.starts && !fake.flrs);
                 assert(strstr(fake.log,"card already initialised since power on"));

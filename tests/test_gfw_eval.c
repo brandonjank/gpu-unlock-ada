@@ -15,6 +15,23 @@ int main(void)
 	};
 
 	assert(gpu_unlock_gfw_assess(&sample) == 0);
+	/* Every PRI-error field can independently look complete; mixed samples
+	 * must be rejected before interpreting any completion bits. */
+	for (unsigned int mask = 1; mask < 8; mask++) {
+		struct gpu_unlock_gfw_sample bad = sample;
+		if (mask & 1) bad.plm = 0xbadf0001;
+		if (mask & 2) bad.boot = 0xbadf00ff;
+		if (mask & 4) bad.cpuctl = 0xbadf0010;
+		assert(gpu_unlock_gfw_assess(&bad) == -ENODEV);
+	}
+	for (unsigned int field = 0; field < 3; field++) {
+		struct gpu_unlock_gfw_sample bad = sample;
+		if (field == 0) bad.plm = ~0u;
+		if (field == 1) bad.boot = ~0u;
+		if (field == 2) bad.cpuctl = ~0u;
+		assert(gpu_unlock_gfw_assess(&bad) == -ENODEV);
+	}
+	assert(gpu_unlock_gfw_assess(NULL) == -ENODEV);
 	sample.cpuctl = 0;
 	assert(gpu_unlock_gfw_assess(&sample) == -EAGAIN);
 	sample.cpuctl = GU_GFW_CPUCTL_HALTED;

@@ -7,13 +7,18 @@
 
 #include "gfw_eval.h"
 
+/* PRI error values can have every completion bit set (upstream issue #42). */
+static bool gfw_inaccessible(u32 value)
+{
+	return value == (u32)~0U || (value & 0xffff0000u) == 0xbadf0000u;
+}
+
 int gpu_unlock_gfw_assess(const struct gpu_unlock_gfw_sample *sample)
 {
 	if (!sample || !sample->config_ok)
 		return -ENODEV;
-	/* All-ones satisfies the bit tests below and is not a live device. */
-	if (sample->plm == (u32)~0U || sample->boot == (u32)~0U ||
-	    sample->cpuctl == (u32)~0U)
+	if (gfw_inaccessible(sample->plm) || gfw_inaccessible(sample->boot) ||
+	    gfw_inaccessible(sample->cpuctl))
 		return -ENODEV;
 	if (!(sample->cpuctl & GU_GFW_CPUCTL_HALTED))
 		return -EAGAIN;

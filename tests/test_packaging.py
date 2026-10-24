@@ -3,6 +3,7 @@
 import hashlib
 import json
 import os
+import shutil
 from pathlib import Path
 import subprocess
 import sys
@@ -16,6 +17,64 @@ import generate_v67  # noqa: E402
 
 
 class PackageTests(unittest.TestCase):
+    def test_debian_rebuilds_on_install_and_removal_only(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            wrapper = root / "update-initramfs"
+            wrapper.write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$REBUILD_LOG"\n')
+            wrapper.chmod(0o755)
+            log = root / "rebuild.log"
+            env = dict(os.environ, PATH=f"{root}:{os.environ['PATH']}", REBUILD_LOG=str(log))
+            for script, action in (("postinst", "configure"), ("postrm", "upgrade"), ("postrm", "remove")):
+                subprocess.run(["sh", str(ROOT / f"debian/gpu-unlock-dkms.{script}"), action],
+                               env=env, check=True)
+            self.assertEqual(log.read_text().splitlines(), ["-u -k all", "-u -k all"])
+
+    def test_arch_recipe_ships_both_early_load_configs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "gpu-unlock").symlink_to(ROOT, target_is_directory=True)
+            env = dict(os.environ, startdir=str(ROOT / "packaging/arch"),
+                       pkgdir=str(root / "package"), pkgname="gpu-unlock-dkms")
+            subprocess.run(["bash", "-c", 'set -e; source "$1"; package_gpu-unlock-dkms',
+                            "arch-layout", str(ROOT / "packaging/arch/PKGBUILD")],
+                           cwd=root, env=env, check=True, capture_output=True, text=True)
+            package = root / "package"
+            for path, source in (
+                ("usr/lib/dracut/dracut.conf.d/gpu-unlock.conf", "dracut.conf"),
+                ("etc/mkinitcpio.conf.d/zz-gpu-unlock.conf", "mkinitcpio.conf"),
+            ):
+                self.assertEqual((package / path).read_bytes(),
+                                 (ROOT / "packaging/boot" / source).read_bytes())
+
+    def test_debian_recipe_and_file_selection_ship_both_configs(self):
+        # Run the real install recipe in a disposable source layout, with
+        # fixture assets. Verify the binary package's own file selection too.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for path in ("Makefile", "VERSION", "README.md", "kernel", "packaging", "licenses", "debian", "firmware"):
+                source = ROOT / path
+                if source.is_dir():
+                    shutil.copytree(source, root / path)
+                else:
+                    shutil.copy2(source, root / path)
+            assets = root / "assets"
+            assets.mkdir()
+            for name in set(self.manifest()["derived_assets"]) | {"gsp_ga10x.bin", "v67-ga102-610.43.03.bin", "v67-ad102-610.43.03-four-plm.bin", "NVIDIA-LICENSE"}:
+                (assets / name).write_bytes(b"fixture")
+            # The staging target does not use dpkg's version metadata. Let a
+            # minimal host omit that include; native CI builds use real dpkg.
+            result = subprocess.run(["make", "-s", "-f", "debian/rules",
+                                     "--eval=/usr/share/dpkg/pkg-info.mk: ;", "override_dh_auto_install",
+                                     f"ASSETS={assets}"], cwd=root, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            stage = root / "debian/tmp"
+            selectors = (root / "debian/gpu-unlock-dkms.install").read_text().splitlines()
+            for path in ("usr/lib/dracut/dracut.conf.d/gpu-unlock.conf",
+                         "usr/share/initramfs-tools/modules.d/gpu-unlock.conf"):
+                self.assertTrue((stage / path).is_file(), path)
+                self.assertTrue(any(Path(selector) in Path(path).parents for selector in selectors), path)
+
     @unittest.skipUnless((ASSETS / "booter_load_ad102.bin").is_file(),
                          "set GPU_UNLOCK_ASSETS to the pinned GA/Ada asset directory")
     def test_firmware_package_contains_pinned_ada_assets_and_payload(self):

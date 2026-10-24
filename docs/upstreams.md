@@ -61,28 +61,69 @@ material has been inspected; failed sources retain their prior checkpoints.
 Monitoring does not automatically merge code, replace pinned firmware, execute
 upstream scripts, run GPU experiments or change the machine's boot configuration.
 
-## Initial review, 2026-10-24
+## Detailed review, 2026-10-24
 
-The direct Ada parent, WildFlash payload source and TOTORONG source match the
-recorded integration revisions. Zagitta's current head is 22 commits ahead of
-the older Linux transaction vendored by the Windows port. That comparison does
-not describe the ancestry or integration status of the separate Ada Linux module.
-Two candidates merit a focused review:
+Reviewed our published `aaaa5d7` against Zagitta's current
+`af28cbbfd3d922a659227ecfb7369adfd924cf03`, the two initially identified
+commits, relevant open issues/PRs, and NVIDIA's `615.78.08` PM notifier source.
+The direct Ada parent is still `491925c`. Zagitta is 22 commits ahead of the
+older transaction recorded by the UEFI vendor notice; that count does not
+describe the separate Ada Linux module's integration status.
 
-- [Older-kernel device claiming and firmware-set bus mastering](https://github.com/Zagitta/gpu-unlock/commit/d04f5a00f30d9bceec7069868a7504fd925dc7ad).
-  Upstream accepts `PCI_UNKNOWN` only when PMCSR confirms D0, and clears
-  firmware-set BME before claiming an unbound card. Review against the existing
-  fail-closed guards in `kernel/gpu_unlock/unlock_610.c` and the separately
-  retained Windows transaction. Add negative claim tests before considering a
-  port; upstream's reported RTX 3090 result does not validate Ada or UEFI.
-- [Unlock after suspend-to-RAM](https://github.com/Zagitta/gpu-unlock/commit/c274e74981d996e4b83266b43b9070804099ddae).
-  Upstream adds a power-management notifier and a guarded resume path. This
-  fork's `kernel/gpu_unlock/main.c` has no matching notifier. A future Linux
-  adaptation needs Ada selector, firmware freshness, driver-ordering and DMA
-  lifetime checks plus suspend/resume hardware validation. It does not establish
-  a Windows runtime resume mechanism.
+The initial candidate list was provisional: **the older-kernel and firmware-BME
+fixes are already in our Linux module**, including its fault-injection cases.
+No runtime behavior is changed by this review.
 
-Neither candidate is integrated by the publication or monitoring setup.
+| Candidate | Decision | Evidence and scope |
+|---|---|---|
+| [Reject initial GFW register-error values, issue 42](https://github.com/Zagitta/gpu-unlock/issues/42) | First priority: implement a focused adaptation | Both `kernel/gpu_unlock/gfw_eval.c` and `windows/uefi/vendor/gfw_eval.c` accept `0xbadfxxxx` samples when their low bits resemble completion. Independently reproduced with the actual predicates, without GPU access. |
+| [FWSEC DMA validation before launch, PR 35](https://github.com/Zagitta/gpu-unlock/pull/35) | Keep Linux's existing solution; adapt the remaining UEFI cleanup fix | Linux already rounds transfer spans, bounds their tails, validates both transfers before reset and marks firmware active at the DMA boundary. UEFI already rounds/bounds DMEM through `gpu_unlock_fwsec_dmem_transfer`, but sets `firmware_started` and calls `GuStarted()` before `falcon_hs()` rejects invalid mapped-address geometry. Review that lifetime boundary separately. |
+| [CI with generated firmware and real module builds](https://github.com/Zagitta/gpu-unlock/blob/af28cbbfd3d922a659227ecfb7369adfd924cf03/.github/workflows/ci.yml) | Bring over the coverage approach | Our workflow runs host tests without generated inputs. Add checked input caching, generated GA/Ada assets and full mocked transactions; then real Linux-header and native-package builds. Keep our Windows checks and adapt rather than replacing the workflow wholesale. |
+| [Debian dracut packaging, PR 26](https://github.com/Zagitta/gpu-unlock/pull/26), and [Arch packaging, issue 44](https://github.com/Zagitta/gpu-unlock/issues/44) | Bring in focused packaging fixes | Our Debian install target/list omit the dracut file; our Arch recipe only invokes `install-mkinitcpio`. The shared `make install-dracut` target already exists. Test the actual native package contents and lifecycle, not just a staging install that explicitly requests every integration target. |
+| [Older-kernel and firmware-BME claims](https://github.com/Zagitta/gpu-unlock/commit/d04f5a00f30d9bceec7069868a7504fd925dc7ad) | No Linux import needed | `unlock_transaction_claim()` already accepts `PCI_UNKNOWN` only with PMCSR-confirmed D0 and verifies clearing firmware BME. Existing scenarios cover unknown power with/without PM support and stuck BME. The separate UEFI environment needs its own ownership policy. |
+| [mkinitcpio systemd-hook fix, PR 34](https://github.com/Zagitta/gpu-unlock/pull/34) and [Debian/RPM lifecycle rebuilds](https://github.com/Zagitta/gpu-unlock/commit/258f38ad4efc3ea6b25afedf8ccbf6fe655423a9) | Core fixes already present | Our mkinitcpio config emits the plain module name and tests removal of the old `?` entry. Debian rebuild hooks and the RPM/DKMS per-kernel lifecycle work are already present. Do not replace our ordering logic with a duplicate fix. |
+| [Suspend/resume re-unlock](https://github.com/Zagitta/gpu-unlock/commit/c274e74981d996e4b83266b43b9070804099ddae) | Hold; do not enable by default | Requires a new bound-driver transaction path and a characterized failure handoff. [Issue 43](https://github.com/Zagitta/gpu-unlock/issues/43) reports late failures retaining DMA/state while the card remains eligible for another resume transaction. Source review confirms the notifier logs a failure and retains that eligibility. This issue is an offline report, not proof of a particular hardware failure. |
+
+### Independently reproduced validator gap
+
+A small CPU-only harness linked separately against each production `gfw_eval.c`
+returned success (`0`) for each of these samples with `config_ok=true`:
+
+| PLM | BOOT | CPUCTL | Result in both copies |
+|---|---|---|---|
+| `0xbadf0001` | `0xff` | `0x10` | `0` |
+| `1` | `0xbadf00ff` | `0x10` | `0` |
+| `1` | `0xff` | `0xbadf0010` | `0` |
+| `0xbadf0001` | `0xbadf00ff` | `0xbadf0010` | `0` |
+
+The valid control also returned `0`; the all-ones control returned `-ENODEV`.
+The transaction's later feature/permission/WPR2 checks still apply: this result
+establishes a validator inconsistency, not a demonstrated complete unlock bypass.
+
+Acceptance for the adaptation: reject the PRI-error family in each register and
+mixed samples; retain valid/in-progress/all-ones controls; verify initial-sampler
+PCI identity and protected-read ordering; preserve the existing bounded retry
+policy after FLR. Add adapter assertions that invalid initial samples cannot
+launch FWSEC or Booter. Apply and test the equivalent predicate fix in both
+Linux and UEFI copies without importing the rest of the old transaction.
+
+### Resume gate
+
+NVIDIA `615.78.08` registers a default-priority PM notifier only when
+`NVreg_UseKernelSuspendNotifiers` is enabled. Zagitta's priority-1 notifier is
+intended to run first, but that arrangement alone does not establish safe state
+for every driver configuration or failure. Our existing API only allows the
+cold, unbound transaction and checks for empty probe resources; the upstream
+resume path deliberately bypasses some of those assumptions for a bound device.
+
+Before considering an experimental opt-in implementation, require separate
+primary/cleanup/retained-state outcomes; quarantine after retained or cleanup-
+failed attempts; no retry that accumulates another DMA transaction or module pin;
+tests carrying late FWSEC/Booter/FLR failures through repeated PM events; and
+Ada-specific cold/kept-power/already-resumed/multi-card hardware validation.
+Quarantine does not itself solve the first unsafe handoff to NVIDIA. Preserve
+the cold-boot-only path until that handoff and recovery contract are established.
+A Linux PM notifier does not add Windows/WSL resume support.
 
 ## Local version control
 

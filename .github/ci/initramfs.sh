@@ -1,7 +1,7 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-2.0-only
 # Disposable Debian CI: construct an image; never load a module or boot it.
-set -eu
+set -eux
 apt-get update -q
 apt-get install -qy --no-install-recommends initramfs-tools linux-headers-amd64
 kernel_dir=$(find /lib/modules -mindepth 2 -maxdepth 2 -name build | sort | tail -n 1)
@@ -44,7 +44,9 @@ printf 'options gpu_unlock targets=0000:01:00.0\n' >/etc/modprobe.d/gpu-unlock.c
 printf 'nvidia\nnvidia_drm\n' >>/etc/initramfs-tools/modules
 mkinitramfs -o "$scratch/image" "$release"
 unmkinitramfs "$scratch/image" "$scratch/unpacked"
-image="$scratch/unpacked/main"
+marker=$(find "$scratch/unpacked" -path '*/conf/gpu-unlock-display' -print -quit)
+[ -n "$marker" ]
+image=$(dirname "$(dirname "$marker")")
 test -x "$image/scripts/init-premount/gpu-unlock"
 grep -q '^gpu_unlock' "$image/conf/modules"
 grep -q '^gpu-unlock-display-v1$' "$image/conf/gpu-unlock-display"

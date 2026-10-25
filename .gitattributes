@@ -30,3 +30,7 @@
 # Keep published evidence bytes identical on Windows and Linux clones.
 /docs/evidence/ada2705/* -text
 /docs/evidence/rtx4090/* -text
+
+/docs/evidence/rtx4090-610.57.04/* -text
+/docs/evidence/rtx4090-48g-modded/* -text
+/docs/evidence/rtx4090-48g-modded/fp8-mma-bench.cu -export-ignore

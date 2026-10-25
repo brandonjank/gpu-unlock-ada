@@ -112,18 +112,22 @@ int main(int argc, char **argv)
      * all register behavior is supplied by this host-only harness. */
     if(argc==3) {
         asset_root=argv[2];full_active=true;
-        static const int cases[]={0,1,2,4,6,7,8,10};
+        static const int cases[]={0,1,2,4,6,7,8,10,17};
         for(unsigned i=0;i<ARRAY_SIZE(cases);i++) {
             ad102_setup(&w);fake.ad_mode=cases[i];load_rom(argv[1]);
             regs[0x1183a4/4]=0x5ff4;regs[0x625f04/4]=1;regs[0x1fa7c8/4]=0x45cb8f;
             regs[0x1fa82c/4]=0x100000;regs[0x1fa830/4]=0x5cf3ff0;
             regs[(GU_FUSE_SEC2_UCODE1+2*4)/4]=1;
             fake.fwsec_wpr=1;fake.fwsec_wpr_lo=0x5ff2000;fake.fwsec_wpr_hi=0x5ff2e00;
+            if(cases[i]==17) {
+                fake.ad_mode=0;fake.cold_delay=5;fake.cold_fb=0x5ff4;
+                regs[0x1183a4/4]=0xbadf5108;
+            }
             struct gpu_unlock_610_shared shared={0};last_work=NULL;
             assert(!gpu_unlock_610_load_shared(&dev,&shared));
             int ret=gpu_unlock_610_unlock(&dev,&shared);
             gpu_unlock_610_release_shared(&shared);
-            bool success=cases[i]==0 || cases[i]==6;
+            bool success=cases[i]==0 || cases[i]==6 || cases[i]==17;
             if((!ret)!=success)fprintf(stderr,"%s\nfull AD mode=%d ret=%d\n",fake.log,cases[i],ret);
             assert((!ret)==success && fake.starts==1 && fake.gsp_starts==1);
             if(cases[i]==1 || cases[i]==2 || cases[i]==4 || cases[i]==10)

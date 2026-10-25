@@ -162,3 +162,33 @@ uses small commits pushed to `origin`; updating an upstream remote never changes
 the checked-out files by itself. Build outputs, raw ROM/firmware dumps, generated
 EFI images and local credentials are excluded from new commits. Existing
 sanitized published evidence remains tracked.
+
+## Selected fixes, 2026-10-25
+
+This integration adapts Zagitta PR [70](https://github.com/Zagitta/gpu-unlock/pull/70)
+at 524822309479f5fe760fc3ab675c5c15ae4163bd: Linux and UEFI wait for bounded GFW
+completion immediately after claim, before layout reads and DMA. Existing PRI
+rejection, exact identity, cold-state and cleanup checks remain.
+
+The initramfs-tools display integration adapts Zagitta PR
+[76](https://github.com/Zagitta/gpu-unlock/pull/76) at
+620ebe1065f4c87806fe87f1f6ccb7f7c0ec2ab1, retaining GPL-2.0-only attribution.
+Our adaptation explicitly schedules gpu_unlock, verifies copied modules and
+firmware before generating a dedicated blacklist/marker, preserves user options,
+and reports failed image construction or display loading.
+
+Ada PR [36](https://github.com/JustAResearcher/gpu-unlock-ada/pull/36) identifies
+multi-GPU assumptions, but its first-success minor scan is not imported.
+We resolve the exact UUID through NVIDIA's pinned public RM identity ABI,
+verify PCI/proc/device-node consistency and allocate its returned instances.
+No firmware, MMIO, reset, suspend or resume operation is added.
+
+Unchanged evidence from Ada PR
+[21](https://github.com/JustAResearcher/gpu-unlock-ada/pull/21), commit
+a13b3ea7fb14be2fcc10b7a217d684fcf360f11a, and PR
+[37](https://github.com/JustAResearcher/gpu-unlock-ada/pull/37), commit
+64a4d2068354afe2d042039ae85df14b0dba2ee3, is retained with its manifests, original
+reports and provenance. All 34 published evidence-file checksums match.
+These observations are not independent physical verification by this fork.
+The earlier report also used 610.57.04; the later report's "first documented"
+wording is retained only as original source text.

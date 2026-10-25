@@ -14,6 +14,9 @@ debian|ubuntu)
     dpkg-deb --contents build/deb/gpu-unlock-dkms_*_all.deb > build/deb/package-contents.txt
     grep -q 'usr/lib/dracut/dracut.conf.d/gpu-unlock.conf' build/deb/package-contents.txt
     grep -q 'usr/share/initramfs-tools/modules.d/gpu-unlock.conf' build/deb/package-contents.txt
+    grep -q 'usr/share/initramfs-tools/hooks/gpu-unlock' build/deb/package-contents.txt
+    grep -q 'usr/share/initramfs-tools/scripts/init-premount/gpu-unlock' build/deb/package-contents.txt
+    sh .github/ci/initramfs.sh
     ;;
 fedora)
     dnf builddep -qy packaging/rpm/gpu-unlock.spec

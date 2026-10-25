@@ -71,7 +71,9 @@ class PackageTests(unittest.TestCase):
             stage = root / "debian/tmp"
             selectors = (root / "debian/gpu-unlock-dkms.install").read_text().splitlines()
             for path in ("usr/lib/dracut/dracut.conf.d/gpu-unlock.conf",
-                         "usr/share/initramfs-tools/modules.d/gpu-unlock.conf"):
+                         "usr/share/initramfs-tools/modules.d/gpu-unlock.conf",
+                         "usr/share/initramfs-tools/hooks/gpu-unlock",
+                         "usr/share/initramfs-tools/scripts/init-premount/gpu-unlock"):
                 self.assertTrue((stage / path).is_file(), path)
                 self.assertTrue(any(Path(selector) in Path(path).parents for selector in selectors), path)
 
@@ -114,6 +116,8 @@ class PackageTests(unittest.TestCase):
                              "usr/share/doc/gpu-unlock/README.md"):
                 self.assertIn(expected, paths)
             self.assertFalse(any(path.endswith(".mod.c") for path in paths))
+            for script in ("hooks/gpu-unlock","scripts/init-premount/gpu-unlock"):
+                self.assertTrue((root/"usr/share/initramfs-tools"/script).stat().st_mode & 0o111)
             # Another package's "softdep nvidia" line would silently win over
             # ours (kmod honours only the first), so the order comes from the
             # initramfs instead: gpu_unlock goes right before nvidia.

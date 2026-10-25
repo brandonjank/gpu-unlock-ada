@@ -1,0 +1,47 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-only
+# Adapted from Zagitta/gpu-unlock PR #76 (620ebe1).
+set -e
+case "${1:-}" in prereqs) exit 0 ;; esac
+. /usr/share/initramfs-tools/hook-functions
+module_file() { modinfo -k "$version" -F filename "$1" 2>/dev/null; }
+fail() { echo "gpu-unlock: $*" >&2; exit 1; }
+check_module()
+{
+    file=$(module_file "$1") || fail "cannot resolve $1"
+    case "$file" in /*.ko|/*.ko.xz|/*.ko.zst|/*.ko.gz) ;; *) fail "invalid module path for $1" ;; esac
+    [ -s "$DESTDIR$file" ] || fail "$1 was not copied into the image"
+    firmware=$(modinfo -k "$version" -F firmware "$1") || fail "cannot list $1 firmware"
+    for fw in $firmware; do
+        found=false
+        for prefix in lib/firmware usr/lib/firmware lib/firmware/updates usr/lib/firmware/updates; do
+            for suffix in "" .xz .zst .gz; do
+                [ ! -s "$DESTDIR/$prefix/$fw$suffix" ] || found=true
+            done
+        done
+        "$found" || fail "missing firmware $fw for $1"
+    done
+}
+module_file gpu_unlock >/dev/null || exit 0
+# force_load copies the module and adds it to /conf/modules.
+force_load gpu_unlock || fail "cannot include gpu_unlock"
+check_module gpu_unlock
+module_file nvidia >/dev/null || exit 0
+manual_add_modules nvidia_drm || fail "cannot include nvidia_drm"
+for module in nvidia nvidia_modeset nvidia_drm; do check_module "$module"; done
+# Preserve copied user options. A separate marker controls the premount script.
+config="$DESTDIR/etc/modprobe.d/zz-gpu-unlock-display.conf"
+mkdir -p "$DESTDIR/etc/modprobe.d" "$DESTDIR/conf"
+temp=$(mktemp "$config.XXXXXX")
+trap 'rm -f "$temp"' EXIT HUP INT TERM
+for module in nvidia nvidia_modeset nvidia_drm; do
+    file=$(module_file "$module") || fail "cannot resolve $module"
+    name=$(basename "$file"); name=${name%%.ko*}
+    printf 'blacklist %s\n' "$name"
+done >"$temp"
+if [ -e "$config" ]; then
+    cmp -s "$temp" "$config" || fail "generated blacklist conflicts with $config"
+else
+    mv "$temp" "$config"
+fi
+printf '%s\n' gpu-unlock-display-v1 >"$DESTDIR/conf/gpu-unlock-display"

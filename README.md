@@ -54,6 +54,18 @@ This fork integrates that published payload into
 **[Zagitta/gpu-unlock](https://github.com/Zagitta/gpu-unlock)**'s Linux module,
 firmware generation and boot packaging. The payload is essential to the result.
 
+## Additional RTX 4090 evidence
+
+Two contributor reports on NVIDIA 610.57.04 add matched instruction, GEMM and
+numerical results: [a standard RTX 4090](docs/evidence/rtx4090-610.57.04/README.md)
+and [a modified 48 GB RTX 4090](docs/evidence/rtx4090-48g-modded/README.md).
+Affected FP16/BF16-input, FP32-accumulate instruction modes approach 2x;
+GEMM improvements vary with shape and include unchanged or regressing cases.
+The modified card's quantized MoE serving workload showed no demonstrated gain.
+Each report covers one card and one stock/unlocked pair, with documented
+background, thermal and cache differences. These are attributed observations,
+not new physical validation performed by this fork.
+
 ## Supported targets
 
 The module selects the AD102 firmware and payload automatically for RTX 4090
@@ -224,3 +236,27 @@ investigation.
 The kernel module, packaging and payload integration are GPL-2.0-only. NVIDIA
 firmware remains under its own terms. See [firmware/NOTICE.md](firmware/NOTICE.md)
 and [licenses/](licenses/) for provenance and preserved license notices.
+
+### initramfs-tools display handoff
+
+The build hook explicitly includes and schedules gpu_unlock, then, when NVIDIA
+is installed, includes nvidia_drm, its dependencies and declared firmware.
+An image-only generated blacklist prevents earlier NVIDIA alias loads. The
+init-premount script clears inherited modprobe blacklist options and restores
+NVIDIA display before the encrypted-root prompt. User modprobe options are
+preserved; a conflicting generated file or missing required module/firmware
+fails image construction visibly. Driver loading failures are reported.
+
+This can add about 90 MB per image; allow space in /boot. It applies to
+initramfs-tools, not dracut, mkinitcpio or Windows. Rebuild the initramfs after
+installing/updating the package. Host and CI image checks do not establish
+physical display recovery for a new board.
+
+### Selecting a GPU for the rate diagnostic
+
+tools/read_sm_rates.py requires an exact --expect-uuid inventory match, the same
+UUID in the driver's PCI information, and a matching NVIDIA character device.
+The public RM UUID and PCI getters select its actual device/subdevice instances.
+Missing or inconsistent mappings fail rather than trying other cards.
+Native Linux device nodes and /proc/driver/nvidia/gpus are required; WSL's
+projected GPU does not provide this RM transport.

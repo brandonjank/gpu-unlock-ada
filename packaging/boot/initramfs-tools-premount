@@ -1,0 +1,12 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-only
+# Adapted from Zagitta/gpu-unlock PR #76 (620ebe1).
+case "${1:-}" in prereqs) exit 0 ;; esac
+[ "$(cat /conf/gpu-unlock-display 2>/dev/null)" = gpu-unlock-display-v1 ] || exit 0
+# load_modules completed gpu_unlock before local-top/cryptroot. Do not inherit
+# -b; kmod also rejects an empty MODPROBE_OPTIONS value.
+unset MODPROBE_OPTIONS
+if ! /sbin/modprobe nvidia_drm; then
+    echo "gpu-unlock: NVIDIA display restoration failed before cryptroot" >&2
+    exit 1
+fi

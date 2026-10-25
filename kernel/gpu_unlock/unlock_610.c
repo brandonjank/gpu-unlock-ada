@@ -1703,12 +1703,13 @@ int gpu_unlock_610_unlock(struct pci_dev *pdev, const struct gpu_unlock_610_shar
 	ret = unlock_transaction_assets(work);
 	if (!ret)
 		ret = unlock_transaction_claim(work);
+	/* Cold cards may still be booting; wait before sampling layout (#70). */
+	if (!ret)
+		ret = unlock_transaction_gfw(work);
 	if (!ret)
 		ret = unlock_transaction_layout(work);
 	if (!ret)
 		ret = unlock_transaction_dma(work);
-	if (!ret)
-		ret = unlock_transaction_gfw(work);
 	if (!ret)
 		ret = unlock_transaction_fwsec(work);
 	if (!ret)

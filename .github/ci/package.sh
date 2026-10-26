@@ -29,9 +29,11 @@ debian|ubuntu)
     ;;
 fedora)
     dnf builddep -qy packaging/rpm/gpu-unlock.spec
+    dnf install -qy cpio
     make rpm INPUTS="$INPUTS"
     rpm -qlp build/rpm/RPMS/noarch/gpu-unlock-dkms-*.rpm > build/rpm/package-contents.txt
     grep -q '/usr/lib/dracut/dracut.conf.d/gpu-unlock.conf' build/rpm/package-contents.txt
+    python3 .github/ci/rpm_permissions.py
     ;;
 arch)
     useradd -m builder

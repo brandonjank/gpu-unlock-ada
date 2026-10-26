@@ -165,6 +165,16 @@ sanitized published evidence remains tracked.
 
 ## Selected fixes, 2026-10-25
 
+The firmware-only RPM permission rule adapts Zagitta PR
+[128](https://github.com/Zagitta/gpu-unlock/pull/128) at
+daf91fd7062ce965cba3956016f539a66630502b: files are explicitly 0644,
+directories 0755, and ownership root:root. Fedora CI checks the exact firmware
+package inventory, permissions, ownership and SHA-256 digests against pinned
+manifests, then extracts the package privately and hashes its actual payload.
+A second build deliberately stages executable files and restrictive directories
+to exercise the manifest correction. BuildArch remains noarch with standard RPM
+postprocessing and architecture checks enabled.
+
 The NTFS Debian build fix adapts Zagitta PR
 [154](https://github.com/Zagitta/gpu-unlock/pull/154) at
 16d9a6bfa6de607742e59f90b8fa0fd5c18dce9f. Each build uses its own temporary

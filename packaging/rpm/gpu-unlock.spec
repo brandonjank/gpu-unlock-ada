@@ -65,6 +65,8 @@ make DESTDIR=%{buildroot} ASSETS="$PWD/assets" \
 %{_prefix}/lib/dracut/dracut.conf.d/gpu-unlock.conf
 
 %files firmware
+# Adapted from Zagitta/gpu-unlock PR #128, daf91fd7062ce965cba3956016f539a66630502b.
+%defattr(0644,root,root,0755)
 %license %{_defaultlicensedir}/gpu-unlock-firmware
 %{_prefix}/lib/firmware/gpu-unlock
 

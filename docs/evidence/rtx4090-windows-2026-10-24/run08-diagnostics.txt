@@ -1,0 +1,17 @@
+PLATFORM rtc_status=0 year=2026 month=10 day=24 [time fields omitted]
+SUITE version=10; boot/runtime EDID release and per-boot cold-selector latch; optional unlock requires final manual U.
+SECURITY SecureBoot=1 status=0 firmware_policy_unchanged=1
+SUITE_GATE ready=1 seen=0xfff failed=0 missing=0 invalid=0 required=0xfff
+Required: PCI state: PASS
+Required: GPU boot readiness: PASS
+Required: Graphics driver ownership: PASS
+Required: Windows boot file: PASS
+Required: PROM security firmware: PASS
+Required: Security firmware preparation: PASS
+Required: Security firmware signature selection: PASS
+Required: Pinned firmware assets: PASS
+Required: GSP firmware preparation: PASS
+Required: Booter preparation and signature selection: PASS
+Required: Matching firmware sources: PASS
+Required: Matching verified PROM repeat: PASS
+DIAGNOSTICS PASSED. U: open experimental unlock preflight now. Enter/Esc: finish diagnostics only.

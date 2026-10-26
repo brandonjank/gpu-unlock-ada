@@ -8,9 +8,16 @@ port. See [upstream tracking](docs/upstreams.md) for source repositories,
 revision baselines and the update review process.
 
 **Windows / Ubuntu on WSL2:** see the [experimental Windows preboot port](windows/README.md).
-Its CUDA validation runner has been exercised on both systems; the RTX 4090 UEFI
-unlock and Windows driver handoff still require hardware validation. The Linux
-kernel module cannot unlock the Windows host GPU from inside WSL2.
+On **October 24, 2026**, local suite version 10 completed a preboot unlock on
+one RTX 4090 **with Secure Boot enabled**, then handed off to Windows 11 with
+the stock NVIDIA 616.56 driver. FP16, BF16, TF32 and unsigned INT4 CUDA probes
+passed on Windows and Ubuntu/WSL2 with **zero mismatches across 2,162,688 checked
+output cells**. See the [sanitized hardware and workload evidence](docs/evidence/rtx4090-windows-2026-10-24/README.md).
+This records one board and one successful unlock boot, not a priority claim,
+general stability result or controlled speedup measurement. The tested EFI came
+from later local development; the published source has not yet been brought to
+that tested version. The Linux kernel module cannot unlock the Windows host GPU
+from inside WSL2.
 
 This Linux kernel module enables the SM speed-select override before the stock
 NVIDIA driver starts. RTX 4090 (`10de:2684`, AD102) support has demonstrated

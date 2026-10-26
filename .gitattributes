@@ -33,4 +33,5 @@
 
 /docs/evidence/rtx4090-610.57.04/* -text
 /docs/evidence/rtx4090-48g-modded/* -text
+/docs/evidence/rtx4090-windows-2026-10-24/* -text
 /docs/evidence/rtx4090-48g-modded/fp8-mma-bench.cu -export-ignore

@@ -1,0 +1,92 @@
+{
+  "gpu": {
+    "name": "NVIDIA GeForce RTX 4090",
+    "driver": "616.56",
+    "power_limit_watts": 450.0
+  },
+  "cubin_sha256": "f29773ec69a0258e64c1ba9b4f715b2e4deefbb15e2e5bbbc06982ce27a39695",
+  "iters": 20000,
+  "reps": 3,
+  "blocks": 1056,
+  "threads": 256,
+  "warps": 8448,
+  "chains": 8,
+  "modes": {
+    "f16_f32": {
+      "instruction": "bench_f16_f32",
+      "k": 16,
+      "times_ms": [
+        19.162111282348633,
+        19.198976516723633,
+        19.20204734802246
+      ],
+      "rates_Top_per_s": [
+        288.9285631641219,
+        288.3737721736022,
+        288.3276548409396
+      ],
+      "best_Top_per_s": 288.9285631641219,
+      "expected_cell": 10240000,
+      "cells_checked": 270336,
+      "mismatches": 0
+    },
+    "tf32": {
+      "instruction": "bench_tf32",
+      "k": 8,
+      "times_ms": [
+        18.37558364868164,
+        19.85536003112793,
+        19.090431213378906
+      ],
+      "rates_Top_per_s": [
+        150.6477667825592,
+        139.4203195338757,
+        145.00671090446448
+      ],
+      "best_Top_per_s": 150.6477667825592,
+      "expected_cell": 5120000,
+      "cells_checked": 270336,
+      "mismatches": 0
+    },
+    "u4_s32": {
+      "instruction": "bench_u4",
+      "k": 64,
+      "times_ms": [
+        17.530879974365234,
+        17.59846305847168,
+        17.597440719604492
+      ],
+      "rates_Top_per_s": [
+        1263.2523382958059,
+        1258.401091414584,
+        1258.474199337876
+      ],
+      "best_Top_per_s": 1263.2523382958059,
+      "expected_cell": 40960000,
+      "cells_checked": 270336,
+      "mismatches": 0
+    },
+    "bf16_f32": {
+      "instruction": "bench_bf16_f32",
+      "k": 16,
+      "times_ms": [
+        17.501184463500977,
+        17.503231048583984,
+        17.560575485229492
+      ],
+      "rates_Top_per_s": [
+        316.3489472124831,
+        316.31195775410293,
+        315.2790342581216
+      ],
+      "best_Top_per_s": 316.3489472124831,
+      "expected_cell": 10240000,
+      "cells_checked": 270336,
+      "mismatches": 0
+    }
+  },
+  "platform": "Windows-11-10.0.26200-SP0",
+  "power_limit_verified": true,
+  "expected_power_limit_watts": 450.0,
+  "seconds": 0.6607942581176758
+}

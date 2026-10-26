@@ -1,0 +1,39 @@
+{
+  "experiment_date": "2026-10-24",
+  "date_basis": "Operator run record and RUN08 firmware RTC calendar date; no independently timestamped priority proof.",
+  "suite_version": 10,
+  "source_status": "Tested local development snapshot; published Windows source is older. This evidence update does not publish the tested implementation or EFI image.",
+  "tested_efi_sha256": "ff20becfcaf53529eea69e79f69653a9c9e5ec2bd04774fdf79914e53c187f3e",
+  "same_private_gpu_inventory_across_four_workload_reports": true,
+  "preboot_register_unlock_verified": true,
+  "post_windows_driver_register_readback_performed": false,
+  "cold_boot_persistence_tested": false,
+  "controlled_speedup_established": false,
+  "total_unlocked_output_cells_checked": 2162688,
+  "sources": {
+    "baseline-windows.json": {
+      "original_sha256": "cbfb2d6a97bd08b01c6a31dd5259a5e4865a92ca418a3d45ffa290e437741653",
+      "transformation": "GPU inventory string replaced with model, driver and power limit; GPU UUID and PCI address omitted. All other JSON values unchanged."
+    },
+    "baseline-wsl2.json": {
+      "original_sha256": "2a2bb1a7245ead0ef1743f062035fe88f822efc52b702b1dca7510508552310e",
+      "transformation": "GPU inventory string replaced with model, driver and power limit; GPU UUID and PCI address omitted. All other JSON values unchanged."
+    },
+    "unlock-v10-run09-windows.json": {
+      "original_sha256": "e4dbb1f269bc95440f74353a3ebab1b9ab3cbf3a359a2aefc49e58f70471441f",
+      "transformation": "GPU inventory string replaced with model, driver and power limit; GPU UUID and PCI address omitted. All other JSON values unchanged."
+    },
+    "unlock-v10-run09-wsl2.json": {
+      "original_sha256": "4cf831df50fb8f134eba6ec5f2ed6b3d9bb1e332862d74981f9d355c22aec923",
+      "transformation": "GPU inventory string replaced with model, driver and power limit; GPU UUID and PCI address omitted. All other JSON values unchanged."
+    },
+    "run08-diagnostics.txt": {
+      "original_sha256": "84f44c9125dc0742f6f36b17799f997c7c95da0ae9393bdd130cd0474b373d32",
+      "transformation": "Selected original report lines only; other capture metadata omitted. RTC date retained; time fields omitted."
+    },
+    "run09-transaction.txt": {
+      "original_sha256": "e0afa88ca7fc65e0c311d1985e1ac60f9515aec55382f002df6988118b880495",
+      "transformation": "Selected original report lines only; other capture metadata omitted."
+    }
+  }
+}

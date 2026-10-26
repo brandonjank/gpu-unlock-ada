@@ -1,0 +1,15 @@
+SECURITY SecureBoot=1 status=0 firmware_policy_unchanged=1
+AD102 PLM final: index=0 target=WPR_CFG value=0xfffff0ff expected=0xfffff0ff matched=1
+AD102 PLM final: index=1 target=FBPA value=0xffffff0f expected=0xffffffff matched=0
+AD102 PLM final: index=2 target=WPR value=0xffffffff expected=0xffffffff matched=1
+AD102 PLM final: index=3 target=FEAT value=0xffffffff expected=0xffffffff matched=1
+AD102 PLM chain: fires=1/1 required_expected=1; FBPA mismatch is nonfatal; restoring stock signature before SS0/SS1 and Windows handoff
+SELECTOR SUMMARY: ss0_status=0 ss1_status=0 unlock_matched=1; recovering for Windows
+transaction result=0 containment=0 started=1 quiesced=1 fault=0 retained=0 maps=0 FLR=1
+POST-FLR SS0=0x88888888 SS1=0x00000008
+POST-FLR unlock_matched=1; handoff checks GPU accessibility separately
+POST-FLR register_unlock_verified=1 readout1=0 windows_driver_verified=0
+POST-GOP SS0=0x88888888 SS1=0x00000008
+POST-GOP unlock_matched=1; handoff checks GPU accessibility separately
+POST-GOP register_unlock_verified=1 readout1=0 windows_driver_verified=0
+FINAL status=0 stage=post-unlock-handoff attempted=1 driver_release=1 clean=1

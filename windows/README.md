@@ -1,16 +1,28 @@
 # Experimental RTX 4090 Windows and WSL2 port
 
-**The unlock is implemented as a preboot UEFI application, but has not been
-boot-tested on this RTX 4090. It is not yet verified working on Windows.**
-The Windows and Ubuntu/WSL2 CUDA validation runner has been tested on the same
-RTX 4090. This establishes benchmark compatibility, not an unlock.
+**On October 24, 2026, local combined suite version 10 completed a preboot
+unlock on one RTX 4090 with Secure Boot enabled, followed by Windows 11 and
+Ubuntu/WSL2 CUDA validation.** The [sanitized evidence](../docs/evidence/rtx4090-windows-2026-10-24/README.md)
+records successful selector checks after FLR and GOP reconnect, a clean Windows
+handoff, and four CUDA probe modes with zero mismatches across 2,162,688 checked
+output cells. This is one board and one successful unlock boot. It does not
+establish priority, general numerical correctness, stability, persistence across
+power cycles, or a controlled performance gain.
+
+**Tested snapshot versus published source:** the successful EFI was built from
+later local version 10 development, beyond the Windows source currently
+published here. This documentation update publishes selected evidence, not that
+implementation or its EFI image. The build instructions below describe the
+published experimental source; rebuilding it does not reproduce the tested
+version 10 image. The tested image's SHA-256 is recorded in the evidence.
 
 The original Linux module must run before NVIDIA binds the physical GPU.
 Ubuntu inside WSL2 uses the Windows host's NVIDIA driver through GPU
 paravirtualization; it cannot load this module against the host GPU. This port
 instead runs before Windows Boot Manager, then lets Windows and WSL2 use the
-normal Windows driver. Whether driver 616.56 preserves the override still needs
-a boot-time hardware test.
+normal Windows driver. The October 24 run reached driver 616.56 and passed both
+OS workload checks. Selector registers were verified through GOP reconnect;
+direct register readback after the Windows driver loaded was not performed.
 
 The UEFI adapter derives from TOTORONG's published RTX 4080 experiment. It is
 pinned here to desktop RTX 4090 `10de:2684`, chip `0x192000a1`, with a measured

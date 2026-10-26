@@ -37,7 +37,10 @@ make -s -C "$kernel_dir" M="$scratch/modules" modules
 make -s -C "$kernel_dir" M="$PWD/kernel/gpu_unlock" modules
 cp "$scratch/modules/"*.ko kernel/gpu_unlock/gpu_unlock.ko "/lib/modules/$release/updates/gpu-unlock-ci/"
 depmod "$release"
-make -s ASSETS="$PWD/build/deb/gpu-unlock-$(cat VERSION)/debian/gpu-unlock-build/assets" install-firmware install-initramfs-tools
+# Inspect the packages that users receive; the private build tree is gone.
+dpkg-deb --extract "build/deb/gpu-unlock-firmware_$(cat VERSION)_all.deb" /
+dpkg-deb --extract "build/deb/gpu-unlock-dkms_$(cat VERSION)_all.deb" "$scratch/dkms"
+cp -a "$scratch/dkms/usr/share/initramfs-tools/." /usr/share/initramfs-tools/
 printf fixture >/lib/firmware/gpu-unlock-ci.bin
 mkdir -p /etc/modprobe.d
 printf 'options gpu_unlock targets=0000:01:00.0\n' >/etc/modprobe.d/gpu-unlock.conf

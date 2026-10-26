@@ -165,6 +165,15 @@ sanitized published evidence remains tracked.
 
 ## Selected fixes, 2026-10-25
 
+The NTFS Debian build fix adapts Zagitta PR
+[154](https://github.com/Zagitta/gpu-unlock/pull/154) at
+16d9a6bfa6de607742e59f90b8fa0fd5c18dce9f. Each build uses its own temporary
+directory on a filesystem that preserves Unix modes. Quoted paths support
+spaces, concurrent builds never delete each other's source directories, and
+failed builds preserve previous output. Native CI checks the delivered Debian
+packages and constructs its initramfs from packaged firmware, without depending
+on a retained build tree. Windows UEFI behavior and firmware pins are unchanged.
+
 This integration adapts Zagitta PR [70](https://github.com/Zagitta/gpu-unlock/pull/70)
 at 524822309479f5fe760fc3ab675c5c15ae4163bd: Linux and UEFI wait for bounded GFW
 completion immediately after claim, before layout reads and DMA. Existing PRI

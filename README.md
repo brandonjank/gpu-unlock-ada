@@ -115,6 +115,15 @@ make install-rpm    # dnf builddep, rpmbuild, dnf install
 built from the committed `HEAD`; Debian and RPM outputs go to `build/deb` and
 `build/rpm`. Kernel headers and a working DKMS toolchain are required.
 
+Debian builds can start from an NTFS/DrvFS checkout under WSL, including a path
+with spaces. `make deb` extracts committed sources into a unique directory under
+`$HOME/.cache/gpu-unlock/deb-builds`, preserving the Unix modes Debian requires.
+Override this location with `DEBBUILD_ROOT=/path/on/a/Linux/filesystem`; the build
+checks that it preserves file modes. Only the private temporary directory is
+removed after success or failure, and finished packages are copied back to
+`build/deb` (or `DISTDIR/deb`). The Windows UEFI build continues to use its
+existing [Windows instructions](windows/README.md).
+
 Builds fetch the pinned NVIDIA `610.43.03` source and binary inputs over HTTPS
 and verify their SHA-256 hashes. `make inputs` prepares the cache;
 `make firmware` generates assets from cached inputs; `make assets` does both.

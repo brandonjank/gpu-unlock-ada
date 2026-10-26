@@ -10,7 +10,16 @@ git config --global --add safe.directory "$PWD"
 case "$ID" in
 debian|ubuntu)
     apt-get build-dep -qy .
-    make deb INPUTS="$INPUTS"
+    # Exercise spaces and checkout modes like an NTFS/DrvFS checkout. The
+    # committed archive must restore modes on a separate Linux filesystem.
+    package_scratch=$(mktemp -d)
+    trap 'rm -rf "$package_scratch"' EXIT HUP INT TERM
+    checkout="$package_scratch/checkout with spaces"
+    git clone --quiet --no-hardlinks "$PWD" "$checkout"
+    chmod 777 "$checkout"/debian/*
+    make -C "$checkout" deb INPUTS="$INPUTS" DISTDIR="build output"
+    mkdir -p build/deb
+    cp "$checkout"/"build output"/deb/* build/deb/
     dpkg-deb --contents build/deb/gpu-unlock-dkms_*_all.deb > build/deb/package-contents.txt
     grep -q 'usr/lib/dracut/dracut.conf.d/gpu-unlock.conf' build/deb/package-contents.txt
     grep -q 'usr/share/initramfs-tools/modules.d/gpu-unlock.conf' build/deb/package-contents.txt

@@ -8,6 +8,7 @@ CACHE      ?= $(HOME)/.cache/gpu-unlock
 INPUTS     ?= $(CACHE)/inputs
 ASSETS     ?= $(CACHE)/assets
 DEBBUILD_ROOT ?= $(HOME)/.cache/gpu-unlock/deb-builds
+RPMBUILD_ROOT ?= $(HOME)/.cache/gpu-unlock/rpm-builds
 DKMSDIR    ?= /usr/src/gpu-unlock-$(VERSION)
 FWDIR      ?= /usr/lib/firmware/gpu-unlock/$(NV)
 LICENSEDIR ?= /usr/share/licenses
@@ -25,7 +26,7 @@ NV_UTILS       := nvidia-utils-$(NV)-1-x86_64_v3.pkg.tar.zst
 
 TARBALL := $(DISTDIR)/gpu-unlock-$(VERSION).tar.xz
 DEBDIR  := $(DISTDIR)/deb
-RPMDIR  := $(abspath $(DISTDIR))/rpm
+RPMDIR  := $(DISTDIR)/rpm
 
 .PHONY: all test dist inputs firmware assets install-dkms install-firmware \
         install-mkinitcpio install-initramfs-tools install-dracut \
@@ -135,14 +136,12 @@ install-deb:
 		"$$(realpath "$(DEBDIR)/gpu-unlock-firmware_$(VERSION)_all.deb")"
 
 rpm: dist inputs
-	rm -rf $(RPMDIR)
-	mkdir -p $(RPMDIR)/SOURCES
-	cp $(TARBALL) $(RPMDIR)/SOURCES/
-	ln -s $(abspath $(INPUTS))/$(NV_SOURCE).tar.xz $(abspath $(INPUTS))/$(NV_UTILS) $(RPMDIR)/SOURCES/
-	rpmbuild -ba --define "_topdir $(RPMDIR)" packaging/rpm/gpu-unlock.spec
+	$(PYTHON) packaging/build_rpm.py --archive "$(TARBALL)" --inputs "$(INPUTS)" \
+		--output "$(RPMDIR)" --build-root "$(RPMBUILD_ROOT)" --version "$(VERSION)"
 
 install-rpm:
 	sudo dnf install -y rpm-build
-	sudo dnf builddep -y packaging/rpm/gpu-unlock.spec
+	sudo dnf builddep -y "$(CURDIR)/packaging/rpm/gpu-unlock.spec"
 	$(MAKE) rpm
-	sudo dnf install -y $(RPMDIR)/RPMS/noarch/gpu-unlock-*-$(VERSION)-*.noarch.rpm
+	sudo dnf install -y "$(RPMDIR)/RPMS/noarch/gpu-unlock-dkms-$(VERSION)-"*.noarch.rpm \
+		"$(RPMDIR)/RPMS/noarch/gpu-unlock-firmware-$(VERSION)-"*.noarch.rpm

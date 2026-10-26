@@ -175,6 +175,15 @@ A second build deliberately stages executable files and restrictive directories
 to exercise the manifest correction. BuildArch remains noarch with standard RPM
 postprocessing and architecture checks enabled.
 
+RPM builds now run from committed archives in unique, mode-checked Linux build
+directories, with verified input links and completed packages copied back to the
+checkout. Checkout, input-cache and output paths can contain spaces on NTFS/DrvFS;
+`RPMBUILD_ROOT` must name a Linux directory without whitespace because RPM's own
+generated scripts do not consistently quote `_topdir`. Native CI exercises the
+spaced paths and continues to check both normal and deliberately incorrect
+staging modes. The private source tree is removed on success or failure without
+deleting unrelated cache entries or previous successful packages.
+
 The NTFS Debian build fix adapts Zagitta PR
 [154](https://github.com/Zagitta/gpu-unlock/pull/154) at
 16d9a6bfa6de607742e59f90b8fa0fd5c18dce9f. Each build uses its own temporary

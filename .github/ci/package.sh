@@ -30,10 +30,20 @@ debian|ubuntu)
 fedora)
     dnf builddep -qy packaging/rpm/gpu-unlock.spec
     dnf install -qy cpio
-    make rpm INPUTS="$INPUTS"
+    package_scratch=$(mktemp -d)
+    trap 'rm -rf "$package_scratch"' EXIT HUP INT TERM
+    checkout="$package_scratch/checkout with spaces"
+    git clone --quiet --no-hardlinks "$PWD" "$checkout"
+    mkdir "$package_scratch/inputs with spaces"
+    cp -a "$INPUTS/." "$package_scratch/inputs with spaces/"
+    chmod 777 "$checkout"/packaging/rpm/*
+    make -C "$checkout" rpm INPUTS="$package_scratch/inputs with spaces" DISTDIR="build output"
+    mkdir -p build/rpm
+    cp -a "$checkout/build output/rpm/." build/rpm/
+    archive="$checkout/build output/gpu-unlock-$(cat VERSION).tar.xz"
     rpm -qlp build/rpm/RPMS/noarch/gpu-unlock-dkms-*.rpm > build/rpm/package-contents.txt
     grep -q '/usr/lib/dracut/dracut.conf.d/gpu-unlock.conf' build/rpm/package-contents.txt
-    python3 .github/ci/rpm_permissions.py
+    python3 .github/ci/rpm_permissions.py --archive "$archive" --inputs "$package_scratch/inputs with spaces"
     ;;
 arch)
     useradd -m builder

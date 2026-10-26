@@ -4,7 +4,9 @@
 
 Disposable Fedora CI only. Extract payloads privately; never install a package.
 """
+import argparse
 import hashlib
+import importlib.util
 import json
 from pathlib import Path
 import stat
@@ -92,12 +94,13 @@ def one_firmware_package(top):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--archive', type=Path, required=True)
+    parser.add_argument('--inputs', type=Path, required=True)
+    args = parser.parse_args()
     top = ROOT / 'build/rpm'
     check_package(one_firmware_package(top))
-    spec = (ROOT / 'packaging/rpm/gpu-unlock.spec').read_text()
     marker = '\n%files dkms\n'
-    if spec.count(marker) != 1:
-        raise ValueError('cannot locate end of RPM install section')
     # Keep the real source, generators and standard RPM postprocessing. Change
     # staging modes only; the firmware manifest must repair the delivered modes.
     paths = ('%{buildroot}%{_prefix}/lib/firmware/gpu-unlock '
@@ -105,15 +108,20 @@ def main():
     fixture = (f'\n# CI-only simulation of a filesystem ignoring install -m644.\n'
                f'find {paths} -type f -exec chmod 0755 {{}} +\n'
                f'find {paths} -type d -exec chmod 0700 {{}} +\n')
+    def transform(spec):
+        if spec.count(marker) != 1:
+            raise ValueError('cannot locate end of RPM install section')
+        return spec.replace(marker, fixture + marker)
+    module = importlib.util.spec_from_file_location('build_rpm', ROOT / 'packaging/build_rpm.py')
+    builder = importlib.util.module_from_spec(module)
+    module.loader.exec_module(builder)
     with tempfile.TemporaryDirectory(prefix='gpu-unlock-rpm-modes-') as name:
         temporary = Path(name)
-        variant = temporary / 'permissions.spec'
-        variant.write_text(spec.replace(marker, fixture + marker))
         # The normal package build already ran %check. This build changes only
         # fixture modes and reuses its verified inputs, without replacing outputs.
-        subprocess.run(['rpmbuild', '-bb', '--nocheck', '--define', f'_topdir {temporary}',
-                        '--define', f'_sourcedir {top / "SOURCES"}', str(variant)], check=True)
-        check_package(one_firmware_package(temporary))
+        builder.build(args.archive, args.inputs, temporary / 'output', temporary / 'builds',
+                      (ROOT / 'VERSION').read_text().strip(), spec_transform=transform, check=False)
+        check_package(one_firmware_package(temporary / 'output'))
 
 
 if __name__ == '__main__':

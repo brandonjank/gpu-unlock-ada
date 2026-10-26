@@ -124,6 +124,15 @@ removed after success or failure, and finished packages are copied back to
 `build/deb` (or `DISTDIR/deb`). The Windows UEFI build continues to use its
 existing [Windows instructions](windows/README.md).
 
+RPM builds also support checkout, input-cache and output paths containing spaces,
+including NTFS/DrvFS checkouts. `make rpm` uses a unique build directory under
+`$HOME/.cache/gpu-unlock/rpm-builds`, then copies the two binary packages and
+source-only `.nosrc.rpm` back to `build/rpm` (or `DISTDIR/rpm`). Override the private
+build location with `RPMBUILD_ROOT=` pointing to a Linux filesystem directory
+without whitespace; RPM's generated scripts require this. Its Unix modes are
+checked before building. Temporary files are cleaned up on success or failure,
+while previous successful packages and unrelated cache files are preserved.
+
 Builds fetch the pinned NVIDIA `610.43.03` source and binary inputs over HTTPS
 and verify their SHA-256 hashes. `make inputs` prepares the cache;
 `make firmware` generates assets from cached inputs; `make assets` does both.

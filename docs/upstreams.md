@@ -220,3 +220,15 @@ reports and provenance. All 34 published evidence-file checksums match.
 These observations are not independent physical verification by this fork.
 The earlier report also used 610.57.04; the later report's "first documented"
 wording is retained only as original source text.
+
+## Kernel CI coverage, 2026-10-27
+
+The module-build coverage adapts Zagitta `6081407b312aa3139a2bed62bdda354f4ffddc1d`.
+Eight distribution jobs build every unique header tree, including Ubuntu
+22.04/24.04 GA and HWE and Arch current/LTS kernels. Each build cleans previous
+outputs, selects the versioned GCC recorded by the headers when available,
+and treats compiler warnings as errors. Expected dual-kernel jobs fail when
+fewer than two distinct trees build. Behavioral tests cover aliases, paths
+with spaces, missing compilers/headers, failures and stale module rejection.
+The generated-input, firmware hash, package and Windows checks remain in place;
+no runtime code, firmware pins, Windows boot path or suspend/resume support changes.

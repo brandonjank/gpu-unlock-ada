@@ -70,10 +70,16 @@ jobs:
         include:
           - image: debian:12
             setup: apt-get update -q && apt-get install -qy --no-install-recommends ca-certificates git
+          - image: ubuntu:22.04
+            setup: apt-get update -q && apt-get install -qy --no-install-recommends ca-certificates git
           - image: ubuntu:24.04
+            setup: apt-get update -q && apt-get install -qy --no-install-recommends ca-certificates git
+          - image: ubuntu:26.04
             setup: apt-get update -q && apt-get install -qy --no-install-recommends ca-certificates git
           - image: debian:13
             setup: apt-get update -q && apt-get install -qy --no-install-recommends ca-certificates git
+          - image: fedora:43
+            setup: dnf install -qy git
           - image: fedora:latest
             setup: dnf install -qy git
           - image: archlinux:latest

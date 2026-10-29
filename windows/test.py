@@ -3,6 +3,7 @@
 """Run Windows/WSL profile, read-only probe and retained kernel component tests."""
 import argparse
 import importlib.util
+import json
 from pathlib import Path
 import subprocess
 import sys
@@ -53,10 +54,25 @@ def main():
         spec.loader.exec_module(fixtures)
         run = Path(d) / "fixture"
         run.mkdir()
+        boot = {"esp_partition_guid": "12345678-1234-5678-9abc-0123456789ab",
+                "boot_manager_bytes": 1048593,
+                "boot_manager_sha256": fixtures.boot_fixture_hash()}
+        boot_path = Path(d) / "boot-profile.json"
+        boot_path.write_text(json.dumps(boot))
+        (Path(d) / "boot_profile.h").write_text(fixtures.build.boot_profile_header(boot))
+        binary = Path(d) / ("boot-manager-tests.exe" if sys.platform == "win32" else "boot-manager-tests")
+        subprocess.run([args.zig, "cc", *target, "-std=c11", "-Wall", "-Wextra", "-Werror",
+                        "-fshort-wchar", f"-I{d}", *(f"-I{p}" for p in includes),
+                        str(ROOT / "windows/tests/test_boot_manager.c"), str(UEFI / "sha256.c"),
+                        "-o", str(binary)], check=True)
+        result = run_binary(binary)
+        print(result.stdout + result.stderr, end="")
+        result.check_returncode()
         profile = fixtures.build.board_profile(fixtures.fixture(run))
         (Path(d) / "board_profile.h").write_text(fixtures.build.profile_header(profile))
         subprocess.run([sys.executable, str(ROOT / "windows/build.py"), "unlock", "--zig", args.zig,
-                        "--run", str(run), "--output", str(Path(d) / "compile-only")], check=True)
+                        "--run", str(run), "--boot-profile", str(boot_path),
+                        "--output", str(Path(d) / "compile-only")], check=True)
         print("Unlock image compile-checked with synthetic data; no hardware validation.")
         binary = Path(d) / ("config-tests.exe" if sys.platform == "win32" else "config-tests")
         subprocess.run([args.zig, "cc", *target, "-std=c11", "-Wall", "-Wextra", "-Werror", "-fshort-wchar",

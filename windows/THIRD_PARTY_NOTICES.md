@@ -17,6 +17,16 @@ than requiring another board's value of 7; pin the measured SS1 for unlock
 preflight; log Secure Boot state and support firmware-authorized execution with
 Secure Boot enabled without changing any firmware trust variables.
 
+Changes dated 2026-10-29: add private Windows ESP and boot-manager size/SHA-256
+pins, exact-buffer firmware loading and explicit staged-image cleanup, following
+the boot-file preflight approach in
+[JustAResearcher/gpu-unlock-ada PR #104](https://github.com/JustAResearcher/gpu-unlock-ada/pull/104),
+head `26fdc0473bfb4541dae50ae76d5012f32c81170f`. That contribution by w93163red
+derives from Latence.app's AD104/MSI port, published through Bizcott. Our focused
+adaptation remains GPL-2.0-only and retains our Secure Boot admission, build
+toolchain, board profiles and display/transaction implementation. No Windows
+binary, ESP identifier or other board's hardware pins are distributed.
+
 Probe version 3 adds bounded firmware-view backups, repeated PROM sampling,
 selected register and boot-state snapshots, USB readback verification, and an
 offline capture inspector. The register selection follows this repository's

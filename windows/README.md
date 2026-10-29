@@ -137,12 +137,53 @@ that firmware can be modified or that an override survives loss of power.
 ## Build the board-specific unlock application
 
 Use the successful capture from **this exact card**. For example, if the USB is
-`E:`, build a separate output:
+`E:`, build a separate output. Unlock builds also require a private boot profile:
 
 ```powershell
-python windows/build.py unlock --zig C:/path/to/zig.exe --run E:/GPU-UNLOCK/RUN00 --output build/windows/unlock
+New-Item -ItemType Directory -Force windows/local
+Copy-Item windows/boot-profile.example.json windows/local/boot-profile.json
+```
+
+Replace the deliberately unusable template values with the reviewed Windows
+ESP partition GUID, exact byte length, and whole-file SHA-256 of
+`\EFI\Microsoft\Boot\bootmgfw.efi` on that ESP. Use the ESP copy, rather than
+another Windows copy. The SHA-256 covers the complete file, including its
+signature; it is not the Authenticode PE digest. The accepted size is 1-8 MiB.
+No partition number, sector offset or partition size from another board is
+assumed. Keep this profile in the ignored `windows/local/` directory. The
+read-only probe does not need a boot profile.
+
+```powershell
+python windows/build.py unlock --zig C:/path/to/zig.exe --run E:/GPU-UNLOCK/RUN00 --boot-profile windows/local/boot-profile.json --output build/windows/unlock
 python windows/prepare_assets.py build/windows/unlock/GPU-UNLOCK/ASSETS
 ```
+
+The unlocker requires one matching non-USB ESP, excludes its own launch volume,
+checks the exact file size, complete reads, EOF and SHA-256, then passes those
+same verified bytes and the full device path to firmware's `LoadImage` service.
+It retains the loaded-device and loader-code checks. Firmware authentication
+and revocation policy still apply with Secure Boot enabled; a matching hash
+does not override a firmware rejection. A failure stops before manual arming,
+display release or the GPU transaction. Earlier GPU discovery/profile reads
+have already occurred. Staged images are unloaded on safe preflight failure or
+cancellation, including a policy rejection that returns an image handle.
+
+Windows updates can replace the boot manager. A mismatch blocks the unlock
+path; use normal Windows Boot Manager, review the updated ESP file, refresh the
+private pin and rebuild. There is no automatic acceptance or unpinned fallback.
+If firmware authorizes our EFI by its image hash, the rebuilt EFI needs the
+existing authorization step again; this application never changes trust or
+boot variables. Keep the profile, generated headers, build report and boot
+images private. Pinning is a compatibility/integrity guard, not proof of a
+successful unlock or an independent Secure Boot attestation.
+
+This focused adaptation follows the boot-file pinning idea in
+[upstream PR #104](https://github.com/JustAResearcher/gpu-unlock-ada/pull/104)
+at `26fdc0473bfb4541dae50ae76d5012f32c81170f`. Its board identifiers,
+Secure Boot-off-only admission, build flags and display-release implementation
+are not imported. Synthetic host tests exercise our pinning and cleanup with
+Secure Boot states 0 and 1; they do not qualify the new loading path on hardware.
+The October 24 evidence remains specific to the retained local version 10 image.
 
 The builder verifies capture hashes and consistency, then embeds the PCI
 address, subsystem, chip revision, BAR0 mapping, VRAM size, ROM size/hash, and

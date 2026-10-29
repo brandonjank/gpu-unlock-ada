@@ -1,6 +1,7 @@
 /workbook/
 /scratchpad/
 /build/
+/windows/local/
 **/__pycache__/
 *.pyc
 *.ko

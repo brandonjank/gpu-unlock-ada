@@ -7,6 +7,7 @@ import sys
 import tarfile
 import io
 import tempfile
+import json
 import unittest
 from unittest.mock import patch
 
@@ -24,6 +25,76 @@ build = load("windows_build", ROOT / "windows/build.py")
 runner = load("tensor_runner", ROOT / "diagnostics/bench/tensor_modes_driver_runner.py")
 generator = load("windows_generate_v67", ROOT / "firmware/generate_v67.py")
 inspector = load("capture_inspector", ROOT / "windows/inspect_capture.py")
+
+
+def boot_fixture_hash():
+    data = bytearray((i * 17 + 31) & 255 for i in range(1048593))
+    data[:2] = b"MZ"
+    return hashlib.sha256(data).hexdigest()
+
+
+class BootProfileTests(unittest.TestCase):
+    def profile(self):
+        return dict(esp_partition_guid="12345678-1234-5678-9abc-0123456789ab",
+                    boot_manager_bytes=1048593, boot_manager_sha256="ab" * 32)
+
+    def test_validated_pin_and_guid_byte_order(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "pin.json"
+            data = self.profile()
+            data["boot_manager_sha256"] = data["boot_manager_sha256"].upper()
+            p.write_text(json.dumps(data))
+            parsed = build.boot_profile(p)
+            self.assertEqual(parsed["boot_manager_sha256"], "ab" * 32)
+            header = build.boot_profile_header(parsed)
+            self.assertIn("{0x12345678,0x1234,0x5678,{0x9a,0xbc,0x01,0x23,0x45,0x67,0x89,0xab}}", header)
+
+    def test_bad_private_pins_rejected(self):
+        bad = [("esp_partition_guid", value) for value in
+               ("not a guid", "00000000-0000-0000-0000-000000000000", None, 1)]
+        bad += [("boot_manager_bytes", value) for value in (0, 1048575, 8388609, True, "1048593", 1048593.0)]
+        bad += [("boot_manager_sha256", value) for value in ("0" * 64, "a" * 63, "a" * 65, "g" * 64, "ab\n" * 32, None)]
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "pin.json"
+            for key, value in bad:
+                with self.subTest(key=key, value=value):
+                    data = self.profile(); data[key] = value
+                    p.write_text(json.dumps(data))
+                    with self.assertRaises((ValueError, TypeError, AttributeError)):
+                        build.boot_profile(p)
+
+    def test_duplicate_missing_unknown_fields_and_template_rejected(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "pin.json"
+            data = self.profile()
+            variants = [json.dumps({}), "[]", json.dumps(dict(data, extra=1)),
+                        json.dumps(data)[:-1] + ',"boot_manager_bytes":1048593}',
+                        (ROOT / "windows/boot-profile.example.json").read_text()]
+            for text in variants:
+                p.write_text(text)
+                with self.assertRaises(ValueError): build.boot_profile(p)
+
+    def test_unlock_missing_pin_rejected_before_output_or_compiler(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d) / "output"
+            with patch.object(sys, "argv", ["build.py", "unlock", "--run", d, "--output", str(out)]), \
+                    patch.object(build.subprocess, "run", side_effect=AssertionError("compiler called")):
+                with self.assertRaises(SystemExit): build.main()
+            self.assertFalse(out.exists())
+
+    def test_probe_does_not_require_private_pin(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d) / "probe"
+            def compiler(command, **kwargs):
+                self.assertNotIn("app.c", " ".join(command))
+                image = out / "EFI/BOOT/BOOTX64.EFI"
+                image.write_bytes(b"synthetic")
+            with patch.object(sys, "argv", ["build.py", "probe", "--output", str(out)]), \
+                    patch.object(build.subprocess, "run", side_effect=compiler), \
+                    patch.object(build.subprocess, "check_output", return_value="test"), \
+                    patch.object(build, "inspect_pe", return_value={"sha256": "test"}):
+                build.main()
+            self.assertFalse((out / "boot_profile.h").exists())
 
 
 def fixture(directory):

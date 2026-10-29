@@ -11,6 +11,7 @@ import re
 import shutil
 import struct
 import subprocess
+import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
 UEFI = ROOT / "windows/uefi"
@@ -21,6 +22,39 @@ CORE = ["vendor/unlock_610", "vendor/prep_610", "vendor/layout_610",
 
 def sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
+
+def boot_profile(path: Path) -> dict:
+    """Validate explicit private pins; never learn them from an executing EFI."""
+    def unique(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError(f"duplicate boot profile field: {key}")
+            result[key] = value
+        return result
+    data = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=unique)
+    if not isinstance(data, dict) or set(data) != {
+            "esp_partition_guid", "boot_manager_bytes", "boot_manager_sha256"}:
+        raise ValueError("boot profile requires exactly ESP GUID, boot-manager size and SHA-256")
+    guid = uuid.UUID(data["esp_partition_guid"])
+    size, digest = data["boot_manager_bytes"], data["boot_manager_sha256"]
+    if guid.int == 0 or type(size) is not int or not 1048576 <= size <= 8388608:
+        raise ValueError("boot profile needs a nonzero ESP GUID and a reviewed size of 1-8 MiB")
+    if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-fA-F]{64}", digest) or int(digest, 16) == 0:
+        raise ValueError("boot profile needs a nonzero whole-file SHA-256 (64 hex digits)")
+    return dict(esp_partition_guid=str(guid), boot_manager_bytes=size,
+                boot_manager_sha256=digest.lower())
+
+
+def boot_profile_header(profile: dict) -> str:
+    guid = uuid.UUID(profile["esp_partition_guid"])
+    tail = ",".join(f"0x{x:02x}" for x in guid.bytes[8:])
+    return ("// Private generated boot profile; do not publish.\n#pragma once\n"
+            f"#define GU_WINDOWS_PARTITION_INITIALIZER {{{guid.time_low:#x},{guid.time_mid:#x},"
+            f"{guid.time_hi_version:#x},{{{tail}}}}}\n"
+            f"#define GU_WINDOWS_BOOTMGR_BYTES {profile['boot_manager_bytes']}U\n"
+            f"#define GU_WINDOWS_BOOTMGR_SHA256 \"{profile['boot_manager_sha256']}\"\n")
 
 
 def board_profile(run: Path) -> dict[str, int | str]:
@@ -117,16 +151,21 @@ def main():
     parser.add_argument("mode", choices=["probe", "unlock"])
     parser.add_argument("--zig", default="zig", help="path to Zig 0.15.2 executable")
     parser.add_argument("--run", type=Path, help="GPU-UNLOCK/RUNxx directory from the probe")
+    parser.add_argument("--boot-profile", type=Path, help="private reviewed Windows ESP/file pins (required for unlock)")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     output = (args.output or ROOT / "build/windows" / args.mode).resolve()
     profile = None
+    boot = None
     if args.mode == "unlock":
         if args.run is None:
             parser.error("unlock requires --run from this card's successful preboot probe")
+        if args.boot_profile is None:
+            parser.error("unlock requires --boot-profile; see windows/boot-profile.example.json")
         try:
             profile = board_profile(args.run)
-        except (OSError, ValueError, KeyError) as error:
+            boot = boot_profile(args.boot_profile)
+        except (OSError, ValueError, KeyError, TypeError, AttributeError) as error:
             parser.error(str(error))
     # Build into a new directory to keep each USB image and report paired.
     output.mkdir(parents=True, exist_ok=False)
@@ -134,6 +173,7 @@ def main():
     (output / "EFI/BOOT").mkdir(parents=True)
     if profile:
         (output / "board_profile.h").write_text(profile_header(profile), encoding="ascii")
+        (output / "boot_profile.h").write_text(boot_profile_header(boot), encoding="ascii")
     sources = COMMON + (["probe", "boot_tests", "checks", "ownership", "vendor/vbios_610", "vendor/gfw_eval"]
                         if args.mode == "probe" else ["app", "ownership", "checks"] + CORE)
     image = output / "EFI/BOOT/BOOTX64.EFI"
@@ -148,7 +188,7 @@ def main():
     subprocess.run([args.zig, "cc", *flags, *(f"-I{p}" for p in includes),
                     *(str(UEFI / (s + ".c")) for s in sources), "-o", str(image)], check=True)
     report = inspect_pe(image.read_bytes())
-    report.update(mode=args.mode, profile=profile, hardware_tested=False, uefi_vm_tested=False,
+    report.update(mode=args.mode, profile=profile, boot_profile=boot, hardware_tested=False, uefi_vm_tested=False,
                   probe_version=4 if args.mode == "probe" else None,
                   builder_sha256=sha256(Path(__file__).read_bytes()),
                   zig_version=subprocess.check_output([args.zig, "version"], text=True).strip(),

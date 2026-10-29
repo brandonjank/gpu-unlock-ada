@@ -383,8 +383,8 @@ finish:
     GuScreenDetached=TRUE;Halt();
   }
   else GuConsole("Attempt cancelled or rejected. Returning without another attempt.\n");
-  if(WindowsImage)Gu.bs->UnloadImage(WindowsImage);
-  GuFree(WindowsDevicePath);WindowsDevicePath=NULL;
+  closed=UnloadWindows();
+  if(EFI_ERROR(closed))status=closed;
   if(EFI_ERROR(status) && status!=EFI_ABORTED && status!=EFI_TIMEOUT && !release_attempted)PausePreflightFailure();
   return status;
 }
